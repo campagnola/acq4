@@ -1,12 +1,12 @@
 import sys, os
 md = os.path.abspath(os.path.split(__file__)[0])
-sys.path = [os.path.join(md, '..', '..', 'util')] + sys.path
+sys.path = [os.path.join(md, '..', '..', '..', '..')] + sys.path
 
-dataFile = "../../atlas/CochlearNucleus/images/cochlear_nucleus.ma"
-labelFile = "../../atlas/CochlearNucleus/images/cochlear_nucleus_label.ma"
+dataFile = "acq4/analysis/atlas/AI_CCF/images/ccf.ma"
+labelFile = "acq4/analysis/atlas/AI_CCF/images/ccf_label.ma"
 
-from PyQt4 import QtCore, QtGui
 import acq4.pyqtgraph as pg
+from acq4.pyqtgraph.Qt import QtCore, QtGui
 #import acq4.pyqtgraph.ColorButton as ColorButton
 #import acq4.pyqtgraph.ProgressDialog as ProgressDialog
 import numpy as np
@@ -28,10 +28,41 @@ win.resize(800,600)
 
 ui.labelTree.header().setResizeMode(QtGui.QHeaderView.ResizeToContents)
 
+if not os.path.exists(dataFile):
+    try:
+        import nrrd
+    except ImportError:
+        raise Exception("No cached atlas file found. Install pynrrd module and download CCF atlas from http://help.brain-map.org/display/mouseconnectivity/API#API-3DReferenceModels.")
+    nrrdFile = QtGui.QFileDialog.getOpenFileName(None, "Select NRRD atlas file")
+    data, header = nrrd.read(nrrdFile)
+    # convert to ubyte to compress a bit
+    np.multiply(data, 255./data.max(), out=data, casting='unsafe')
+    data = data.astype('ubyte')
+
+    # data must have axes (anterior, dorsal, right)
+    # rearrange axes to fit -- CCF data comes in (posterior, inferior, right) order.
+    data = data[::-1, ::-1, :]
+
+    # voxel size in um
+    vxsize = 1e-6 * float(header['space directions'][0][0])
+
+    info = [
+        {'name': 'anterior', 'values': np.arange(data.shape[0]) * vxsize, 'units': 'm'},
+        {'name': 'dorsal', 'values': np.arange(data.shape[1]) * vxsize, 'units': 'm'},
+        {'name': 'right', 'values': np.arange(data.shape[2]) * vxsize, 'units': 'm'},
+    ]
+    ma = metaarray.MetaArray(data, info=info)
+    dataDir = os.path.dirname(dataFile)
+    if not os.path.exists(dataDir):
+        os.makedirs(dataDir)
+    ma.write(dataFile)
+    del ma
+
+
 data = metaarray.MetaArray(file=dataFile, mmap=True)
-## data must have axes (anterior, dorsal, right)
+
 if not os.path.exists(labelFile):
-    label = metaarray.MetaArray(np.zeros(data.shape[:-1], dtype=np.uint16), info=data.infoCopy()[:3] + [{'labels': {}}])
+    label = metaarray.MetaArray(np.zeros(data.shape[:3], dtype=np.uint16), info=data.infoCopy()[:3] + [{'labels': {}}])
     label.write(labelFile, mappable=True)
 label = metaarray.MetaArray(file=labelFile, mmap=True, writable=True)
 
@@ -216,6 +247,9 @@ def updateImage():
     if labelImg.isVisible():
         updateLabelImage()
 
+    # do this immediately to avoid processing more mouse events
+    ui.view.viewport().repaint()
+
 def renderLabels(z, sl=None, overlay=False):
     #p = debug.Profiler('updateLabelImage', disabled=True)
     if sl is None:
@@ -236,14 +270,17 @@ def renderLabels(z, sl=None, overlay=False):
         c = pg.colorTuple(v['btn'].color())
         mask = (lsl&(2**k) > 0)
         alpha = c[3]/255. * val
-        img[mask] *= 1.0 - alpha
-        img[...,0] += mask * int(c[0] * alpha)
-        img[...,1] += mask * int(c[1] * alpha)
-        img[...,2] += mask * int(c[2] * alpha)
-        #img[...,0] += mask * int(c[0] * val)
-        #img[...,1] += mask * int(c[1] * val)
-        #img[...,2] += mask * int(c[2] * val)
-        img[...,3] += mask * (alpha * 255)
+        # inplace multiply broken in numpy 1.10
+        #img[mask] *= 1.0 - alpha
+        # img[...,0] += mask * int(c[0] * alpha)
+        # img[...,1] += mask * int(c[1] * alpha)
+        # img[...,2] += mask * int(c[2] * alpha)
+        # img[...,3] += mask * (alpha * 255)
+        img[mask] = img[mask] * (1.0 - alpha)
+        img[...,0] = img[...,0] + (mask * int(c[0] * alpha))
+        img[...,1] = img[...,1] + (mask * int(c[1] * alpha))
+        img[...,2] = img[...,2] + (mask * int(c[2] * alpha))
+        img[...,3] = img[...,3] + (mask * (alpha * 255))
     if overlay:
         img += 128
     img = img.clip(0,255).astype(np.ubyte)
@@ -310,15 +347,17 @@ def imageChanged():
     else:
         axes = ('anterior', 'right', 'dorsal')
         zAxis = 2
-        
+    print "1"
     displayData = data.transpose(axes)
     displayLabel = label.transpose(axes).view(np.ndarray)
+    print "2"
     ui.zSlider.setMaximum(displayData.shape[0]-1)
     ui.zSlider.setValue(currentPos[zAxis])
+    print "3"
     
     updateImage()
-    #vb.setRange(dataImg.boundingRect())
     vb.autoRange()
+    print "4"
 
 
 def updateKernel():
