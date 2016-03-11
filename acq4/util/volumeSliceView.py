@@ -47,7 +47,6 @@ class VolumeSliceView(QtGui.QWidget):
             return
         d2 = self.roi.getArrayRegion(self.data, self.imv1.imageItem, axes=(1,2))
         self.imv2.setImage(d2, scale=self.scale)
-        print('repaint')
         self.imv2.ui.graphicsView.repaint()  # repaint immediately to avoid processing more mouse events before repaint
 
     def closeEvent(self, ev):
