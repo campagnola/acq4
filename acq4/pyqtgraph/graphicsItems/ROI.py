@@ -2068,7 +2068,7 @@ class LineSegmentROI(ROI):
       
         return p
     
-    def getArrayRegion(self, data, img, axes=(0,1)):
+    def getArrayRegion(self, data, img, axes=(0,1), **kwds):
         """
         Use the position of this ROI relative to an imageItem to pull a slice 
         from an array.
@@ -2084,7 +2084,7 @@ class LineSegmentROI(ROI):
         for i in range(len(imgPts)-1):
             d = Point(imgPts[i+1] - imgPts[i])
             o = Point(imgPts[i])
-            r = fn.affineSlice(data, shape=(int(d.length()),), vectors=[Point(d.norm())], origin=o, axes=axes, order=1)
+            r = fn.affineSlice(data, shape=(int(d.length()),), vectors=[Point(d.norm())], origin=o, axes=axes, **kwds)
             rgns.append(r)
             
         return np.concatenate(rgns, axis=axes[0])
