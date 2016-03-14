@@ -2,13 +2,14 @@ import sys, os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))
 
 import numpy as np
+import json
 import acq4.pyqtgraph as pg
 import acq4.util.metaarray as metaarray
-
+from collections import OrderedDict
 from acq4.pyqtgraph.Qt import QtGui, QtCore
 # from acq4.util.volumeSliceView import VolumeSliceView
 from acq4.util.rulerRoi import RulerROI
-from builder2Template import Ui_MainWindow
+#from builder2Template import Ui_MainWindow
 
 class AtlasBuilder(QtGui.QMainWindow):
     def __init__(self):
@@ -45,13 +46,16 @@ class AtlasViewer(QtGui.QWidget):
         self.ctrlLayout.addWidget(self.axisSelector)
 
         self.labelTree = LabelTree(self)
+        self.labelTree.itemChanged.connect(self.labelsChanged)
         self.ctrlLayout.addWidget(self.labelTree)
 
     def setLabels(self, label):
         self.label = label
-        for id in np.unique(label[1000])[:10]:
-            self.labelTree.addLabel(id, str(id), pg.mkColor((id, 100)))
+        with pg.SignalBlock(self.labelTree.itemChanged, self.labelsChanged):
+            for rec in label._info[-1]['ontology']:
+                self.labelTree.addLabel(*rec)
         self.updateImage()
+        self.labelsChanged()
 
     def setAtlas(self, atlas):
         self.atlas = atlas
@@ -66,14 +70,14 @@ class AtlasViewer(QtGui.QWidget):
             ('dorsal', 'right', 'anterior'),
             ('anterior', 'right', 'dorsal')
         ][axis]
-        self.displayAtlas = self.atlas.transpose(axes)
-        self.displayLabel = self.label.transpose(axes)
-        print "scale:", self.atlas._info[-1]['vxsize']
-        self.view.setData(self.displayAtlas.view(np.ndarray), self.displayLabel.view(np.ndarray), scale=self.atlas._info[-1]['vxsize'])
+        order = [self.atlas._interpretAxis(ax) for ax in axes]
+        self.displayAtlas = self.atlas.view(np.ndarray).transpose(order)
+        self.displayLabel = self.label.view(np.ndarray).transpose(order)
+        self.view.setData(self.displayAtlas, self.displayLabel, scale=self.atlas._info[-1]['vxsize'])
 
     def labelsChanged(self):
-        labels = self.labelTree.activeLabels()
-        # self.lut = np.zeros((2**(self.label.itemsize*8)
+        lut = self.labelTree.lookupTable()
+        self.view.setLabelLUT(lut)
 
 
 class AxisSelector(QtGui.QWidget):
@@ -114,14 +118,21 @@ class LabelTree(QtGui.QTreeWidget):
         self.checked = set()
         self.itemChanged.connect(self.itemChange)
 
-    def addLabel(self, id, name, color):
-        item = QtGui.QTreeWidgetItem([str(id), str(name), ''])
+    def addLabel(self, id, parent, name, acronym, color):
+        item = QtGui.QTreeWidgetItem([acronym, name, ''])
         item.setFlags(item.flags() | QtCore.Qt.ItemIsUserCheckable)
         item.setCheckState(0, QtCore.Qt.Unchecked)
 
-        btn = pg.ColorButton(color=color)
-        self.addTopLevelItem(item)
+        if parent in self.labels:
+            root = self.labels[parent]['item']
+        else:
+            root = self.invisibleRootItem()
+            
+        root.addChild(item)
+        
+        btn = pg.ColorButton(color=pg.mkColor(color))
         self.setItemWidget(item, 2, btn)
+        
         self.labels[id] = {'item': item, 'btn': btn}
         item.id = id
 
@@ -129,11 +140,17 @@ class LabelTree(QtGui.QTreeWidget):
         # btn.sigColorChanging.connect(self.imageChanged)
 
     def itemChange(self, item, col):
-        checked = item.checkState() == QtCore.Qt.Checked
+        checked = item.checkState(0) == QtCore.Qt.Checked
         if checked:
             self.checked.add(item.id)
         else:
             self.checked.remove(item.id)
+
+    def lookupTable(self):
+        lut = np.zeros((2**16, 4), dtype=np.ubyte)
+        for id in self.checked:
+            lut[id] = self.labels[id]['btn'].color(mode='byte')
+        return lut
 
 
 class VolumeView(QtGui.QSplitter):
@@ -230,6 +247,9 @@ class VolumeSliceView(QtGui.QWidget):
         self.layout.addWidget(self.zslider, 2, 0)
 
         self.lut = pg.HistogramLUTWidget()
+        self.lut.setImageItem(self.img1.atlasImg)
+        self.lut.sigLookupTableChanged.connect(self.histlutChanged)
+        self.lut.sigLevelsChanged.connect(self.histlutChanged)
         self.layout.addWidget(self.lut, 0, 1, 3, 1)
 
     def setData(self, atlas, label, scale=None):
@@ -260,6 +280,10 @@ class VolumeSliceView(QtGui.QWidget):
         if autoRange:
             self.view1.autoRange(items=[self.img1.atlasImg])
 
+    def setLabelLUT(self, lut):
+        self.img1.setLUT(lut)
+        self.img2.setLUT(lut)
+
     def updateSlice(self):
         if self.atlas is None:
             return
@@ -276,6 +300,10 @@ class VolumeSliceView(QtGui.QWidget):
         self.imv1.close()
         self.imv2.close()
         self.data = None
+
+    def histlutChanged(self):
+        self.img2.atlasImg.setLookupTable(self.lut.getLookupTable(n=256))
+        self.img2.atlasImg.setLevels(self.lut.getLevels())
 
 
 class LabelImageItem(QtGui.QGraphicsItemGroup):
@@ -297,7 +325,11 @@ class LabelImageItem(QtGui.QGraphicsItemGroup):
         if scale is not None:
             self.resetTransform()
             self.scale(*scale)
-        self.updateImage()
+        self.atlasImg.setImage(self.atlasData, autoLevels=True)
+        self.labelImg.setImage(self.labelData, autoLevels=False)
+
+    def setLUT(self, lut):
+        self.labelImg.setLookupTable(lut)
 
     def setOverlay(self, overlay):
         return
@@ -306,17 +338,8 @@ class LabelImageItem(QtGui.QGraphicsItemGroup):
         else:
             self.labelImg.setCompositionMode(QtGui.QPainter.CompositionMode_SourceOver)
 
-    def updateImage(self):
-        self.atlasImg.setImage(self.atlasData, autoLevels=True)
-        self.labelImg.setImage(self.makeLabelImage(self.labelData), autoLevels=False)
-
     def setLabelColors(self, colors):
         self.labelColors = colors
-
-    def makeLabelImage(self, label):
-        img = np.zeros(label.shape + (4,), dtype=np.ubyte)
-
-
 
 
 def readNRRDAtlas(nrrdFile=None):
@@ -365,15 +388,23 @@ def readNRRDLabels(nrrdFile=None, ontologyFile=None):
       http://help.brain-map.org/display/api/Atlas+Drawings+and+Ontologies#AtlasDrawingsandOntologies-StructuresAndOntologies
 
     """
-
+    global onto, ontology, data, mapping, inds, vxsize, info, ma
+    
     import nrrd
     if nrrdFile is None:
-        nrrdFile = QtGui.QFileDialog.getOpenFileName(None, "Select NRRD label file")
+        nrrdFile = QtGui.QFileDialog.getOpenFileName(None, "Select NRRD annotation file")
 
     if ontologyFile is None:
-        ontoFile = QtGui.QFileDialog.getOpenFileName(None, "Select ontology label file")
+        ontoFile = QtGui.QFileDialog.getOpenFileName(None, "Select ontology file (json)")
 
+    # Read ontology and convert to flat table
+    onto = json.load(open(ontoFile, 'rb'))
+    onto = parseOntology(onto['msg'][0])
+    l1 = max([len(row[2]) for row in onto])
+    l2 = max([len(row[3]) for row in onto])
+    ontology = np.array(onto, dtype=[('id', 'int32'), ('parent', 'int32'), ('name', 'S%d'%l1), ('acronym', 'S%d'%l2), ('color', 'S6')])    
 
+    # read annotation data
     with pg.BusyCursor():
         data, header = nrrd.read(nrrdFile)
 
@@ -383,11 +414,27 @@ def readNRRDLabels(nrrdFile=None, ontologyFile=None):
 
     # compress down to uint16
     print "Compressing.."
-    d2 = data.view(dtype='int32')
-    shift = -d2.min()
-    d2 += shift
-    data = d2.astype('uint16')
-
+    u = np.unique(data)
+    next_id = 2**16-1
+    mapping = OrderedDict()
+    inds = set()
+    for i in u[u<=2**16-1]:
+        mapping[i] = i
+        inds.add(i)
+   
+    with pg.ProgressDialog("Remapping annotations to 16-bit...", 0, (u>2**16-1).sum()) as dlg:
+        for i in u[u>2**16-1]:
+            while next_id in inds:
+                next_id -= 1
+            mapping[i] = next_id
+            inds.add(next_id)
+            data[data == i] = next_id
+            ontology['id'][ontology['id'] == i] = next_id
+            ontology['parent'][ontology['parent'] == i] = next_id
+        dlg += 1
+    mapping = np.array(list(mapping.items()))    
+    
+ 
     # voxel size in um
     vxsize = 1e-6 * float(header['space directions'][0][0])
 
@@ -395,17 +442,24 @@ def readNRRDLabels(nrrdFile=None, ontologyFile=None):
         {'name': 'anterior', 'values': np.arange(data.shape[0]) * vxsize, 'units': 'm'},
         {'name': 'dorsal', 'values': np.arange(data.shape[1]) * vxsize, 'units': 'm'},
         {'name': 'right', 'values': np.arange(data.shape[2]) * vxsize, 'units': 'm'},
-        {'vxsize': vxsize}
+        {'vxsize': vxsize, 'ai_ontology_map': mapping, 'ontology': ontology}
     ]
-    ma = metaarray.MetaArray(data, info=info, chunk=(100, 100, 100))
+    ma = metaarray.MetaArray(data, info=info)
     return ma
 
 
-def writeFile(data, file):
+def parseOntology(root, parent=-1):
+    ont = [(root['id'], parent, root['name'], root['acronym'], root['color_hex_triplet'])]
+    for child in root['children']:
+        ont += parseOntology(child, root['id'])
+    return ont
+
+
+def writeFile(data, file, **kwds):
     dataDir = os.path.dirname(file)
     if not os.path.exists(dataDir):
         os.makedirs(dataDir)
-    data.write(file)
+    data.write(file, **kwds)
 
 
 if __name__ == '__main__':
@@ -419,16 +473,16 @@ if __name__ == '__main__':
     labelFile = "acq4/analysis/atlas/AI_CCF/images/ccf_label.ma"
 
     if os.path.isfile(atlasFile):
-        atlas = metaarray.MetaArray(file=atlasFile)
+        atlas = metaarray.MetaArray(file=atlasFile, readAllData=True)
     else:
         atlas = readNRRDAtlas()
         writeFile(atlas, atlasFile)
 
     if os.path.isfile(labelFile):
-        label = metaarray.MetaArray(file=labelFile)
+        label = metaarray.MetaArray(file=labelFile, readAllData=True)
     else:
         label = readNRRDLabels()
-        writeFile(label, labelFile)
+        writeFile(label, labelFile, chunks=(200,200,200))
 
     v.setAtlas(atlas)
     v.setLabels(label)
