@@ -432,6 +432,7 @@ def readNRRDLabels(nrrdFile=None, ontologyFile=None):
             ontology['id'][ontology['id'] == i] = next_id
             ontology['parent'][ontology['parent'] == i] = next_id
         dlg += 1
+    data = data.astype('uint16')
     mapping = np.array(list(mapping.items()))    
     
  

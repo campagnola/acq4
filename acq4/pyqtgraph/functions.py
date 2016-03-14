@@ -412,12 +412,15 @@ def affineSlice(data, shape, origin, vectors, axes, order=1, returnCoords=False,
         affineSlice(data, shape=(20,20), origin=(40,0,0), vectors=((-1, 1, 0), (-1, 0, 1)), axes=(1,2,3))
     
     """
-    try:
-        import scipy.ndimage
-        have_scipy = True
-    except ImportError:
+    if order == 1:
+        # never use scipy for order=1; we can do this more quickly
         have_scipy = False
-    have_scipy = False
+    else:
+        try:
+            import scipy.ndimage
+        except ImportError:
+            raise ImportError("scipy.ndimage is required when using order != 1")
+        have_scipy = True
 
     # sanity check
     if len(shape) != len(vectors):
