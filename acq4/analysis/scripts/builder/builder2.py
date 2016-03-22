@@ -31,10 +31,14 @@ class AtlasViewer(QtGui.QWidget):
         self.layout.setContentsMargins(0,0,0,0)
 
         self.splitter = QtGui.QSplitter()
-        self.layout.addWidget(self.splitter)
+        self.layout.addWidget(self.splitter, 0, 0)
 
         self.view = VolumeSliceView()
+        self.view.mouseHovered.connect(self.mouseHovered)
         self.splitter.addWidget(self.view)
+        
+        self.statusLabel = QtGui.QLabel()
+        self.layout.addWidget(self.statusLabel, 1, 0, 1, 1)
 
         self.ctrl = QtGui.QWidget(parent=self)
         self.splitter.addWidget(self.ctrl)
@@ -86,6 +90,9 @@ class AtlasViewer(QtGui.QWidget):
             elif param.name() == 'Opacity':
                 self.view.setLabelOpacity(value)
         self.updateImage()
+
+    def mouseHovered(self, id):
+        self.statusLabel.setText(self.labelTree.describe(id))
 
 
 class LabelDisplayCtrl(pg.parametertree.ParameterTree):
@@ -154,11 +161,21 @@ class LabelTree(QtGui.QWidget):
 
     def itemChange(self, item, col):
         checked = item.checkState(0) == QtCore.Qt.Checked
+        with pg.SignalBlock(self.tree.itemChanged, self.itemChange):
+            self.checkRecursive(item, checked)
+        self.labelsChanged.emit()
+        
+    def checkRecursive(self, item, checked):
         if checked:
             self.checked.add(item.id)
+            item.setCheckState(0, QtCore.Qt.Checked)
         else:
-            self.checked.remove(item.id)
-        self.labelsChanged.emit()
+            if item.id in self.checked:
+                self.checked.remove(item.id)
+            item.setCheckState(0, QtCore.Qt.Unchecked)
+        
+        for i in range(item.childCount()):
+            self.checkRecursive(item.child(i), checked)
 
     def itemColorChanged(self, *args):
         self.labelsChanged.emit()
@@ -185,7 +202,7 @@ class LabelTree(QtGui.QWidget):
                 layer = {'1': 0, '2': 1, '2/3': 2, '4': 3, '5': 4, '6a': 5, '6b': 6}[layer]
                 btn = self.labelsById[root.id]['btn']
                 btn.setColor(pg.intColor(layer, 10))
-                root.setCheckState(0, QtCore.Qt.Checked)
+                #root.setCheckState(0, QtCore.Qt.Checked)
                 
             for i in range(root.childCount()):
                 self.colorByLayer(root.child(i))
@@ -199,10 +216,21 @@ class LabelTree(QtGui.QWidget):
             self.blockSignals(True)
             for k,v in self.labelsById.items():
                 v['btn'].setColor(pg.mkColor(v['btn'].defaultColor))
-                v['item'].setCheckState(0, QtCore.Qt.Unchecked)
+                #v['item'].setCheckState(0, QtCore.Qt.Unchecked)
         finally:
             self.blockSignals(False)
             self.labelsChanged.emit()
+
+    def describe(self, id):
+        if id not in self.labelsById:
+            return "Unknown label: %d" % id
+        descr = []
+        item = self.labelsById[id]['item']
+        name = item.text(1)
+        while item is not self.labelsByAcronym['root']['item']:
+            descr.insert(0, item.text(0)) 
+            item = item.parent()
+        return ' > '.join(descr) + "  :  " + name
 
 
 class VolumeView(QtGui.QSplitter):
@@ -262,6 +290,9 @@ class VolumeView(QtGui.QSplitter):
 
 
 class VolumeSliceView(QtGui.QWidget):
+    
+    mouseHovered = QtCore.Signal(object)
+    
     def __init__(self, parent=None):
         self.atlas = None
         self.label = None
@@ -287,10 +318,12 @@ class VolumeSliceView(QtGui.QWidget):
 
         self.img1 = LabelImageItem()
         self.img2 = LabelImageItem()
+        self.img1.mouseHovered.connect(self.mouseHovered)
+        self.img2.mouseHovered.connect(self.mouseHovered)
         self.view1.addItem(self.img1)
         self.view2.addItem(self.img2)
 
-        self.roi = RulerROI([[10, 64], [120,64]], pen='r')
+        self.roi = RulerROI([[10, 64], [120, 64]], pen='r')
         self.view1.addItem(self.roi, ignoreBounds=True)
         self.roi.sigRegionChanged.connect(self.updateSlice)
 
@@ -367,7 +400,13 @@ class VolumeSliceView(QtGui.QWidget):
 
 
 class LabelImageItem(QtGui.QGraphicsItemGroup):
+    class SignalProxy(QtCore.QObject):
+        mouseHovered = QtCore.Signal(object)  # id
+
     def __init__(self):
+        self._sigprox = LabelImageItem.SignalProxy()
+        self.mouseHovered = self._sigprox.mouseHovered
+        
         QtGui.QGraphicsItemGroup.__init__(self)
         self.atlasImg = pg.ImageItem()
         self.labelImg = pg.ImageItem()
@@ -378,6 +417,7 @@ class LabelImageItem(QtGui.QGraphicsItemGroup):
         self.setOverlay(True)
        
         self.labelColors = {}
+        self.setAcceptHoverEvents(True)
 
     def setData(self, atlas, label, scale=None):
         self.labelData = label
@@ -402,6 +442,22 @@ class LabelImageItem(QtGui.QGraphicsItemGroup):
 
     def setLabelColors(self, colors):
         self.labelColors = colors
+        
+    def hoverEvent(self, event):
+        if event.isExit():
+            return
+        
+        try:
+            id = self.labelData[int(event.pos().x()), int(event.pos().y())]
+        except IndexError, AttributeError:
+            return
+        self.mouseHovered.emit(id)
+        
+    def boundingRect(self):
+        return self.labelImg.boundingRect()
+    
+    def shape(self):
+        return self.labelImg.shape()
 
 
 def readNRRDAtlas(nrrdFile=None):
