@@ -41,17 +41,17 @@ class AtlasViewer(QtGui.QWidget):
         self.ctrlLayout = QtGui.QVBoxLayout()
         self.ctrl.setLayout(self.ctrlLayout)
 
-        self.axisSelector = AxisSelector(self)
-        self.axisSelector.axisChanged.connect(self.updateImage)
-        self.ctrlLayout.addWidget(self.axisSelector)
+        self.displayCtrl = LabelDisplayCtrl(parent=self)
+        self.ctrlLayout.addWidget(self.displayCtrl)
+        self.displayCtrl.params.sigTreeStateChanged.connect(self.displayCtrlChanged)
 
         self.labelTree = LabelTree(self)
-        self.labelTree.itemChanged.connect(self.labelsChanged)
+        self.labelTree.labelsChanged.connect(self.labelsChanged)
         self.ctrlLayout.addWidget(self.labelTree)
 
     def setLabels(self, label):
         self.label = label
-        with pg.SignalBlock(self.labelTree.itemChanged, self.labelsChanged):
+        with pg.SignalBlock(self.labelTree.labelsChanged, self.labelsChanged):
             for rec in label._info[-1]['ontology']:
                 self.labelTree.addLabel(*rec)
         self.updateImage()
@@ -64,12 +64,12 @@ class AtlasViewer(QtGui.QWidget):
     def updateImage(self):
         if self.atlas is None or self.label is None:
             return
-        axis = self.axisSelector.axis
-        axes = [
-            ('right', 'anterior', 'dorsal'),
-            ('dorsal', 'right', 'anterior'),
-            ('anterior', 'right', 'dorsal')
-        ][axis]
+        axis = self.displayCtrl.params['Orientation']
+        axes = {
+            'right': ('right', 'anterior', 'dorsal'),
+            'dorsal': ('dorsal', 'right', 'anterior'),
+            'anterior': ('anterior', 'right', 'dorsal')
+        }[axis]
         order = [self.atlas._interpretAxis(ax) for ax in axes]
         self.displayAtlas = self.atlas.view(np.ndarray).transpose(order)
         self.displayLabel = self.label.view(np.ndarray).transpose(order)
@@ -77,66 +77,79 @@ class AtlasViewer(QtGui.QWidget):
 
     def labelsChanged(self):
         lut = self.labelTree.lookupTable()
-        self.view.setLabelLUT(lut)
+        self.view.setLabelLUT(lut)        
+        
+    def displayCtrlChanged(self, param, changes):
+        for param, change, value in changes:
+            if param.name() == 'Composition':
+                self.view.setOverlay(value == 'Overlay')
+            elif param.name() == 'Opacity':
+                self.view.setLabelOpacity(value)
+        self.updateImage()
 
 
-class AxisSelector(QtGui.QWidget):
+class LabelDisplayCtrl(pg.parametertree.ParameterTree):
+    def __init__(self, parent=None):
+        pg.parametertree.ParameterTree.__init__(self, parent=parent)
+        params = [
+            {'name': 'Orientation', 'type': 'list', 'values': ['right', 'anterior', 'dorsal']},
+            {'name': 'Opacity', 'type': 'float', 'limits': [0, 1], 'value': 0.5, 'step': 0.1},
+            {'name': 'Composition', 'type': 'list', 'values': ['Overlay', 'SourceOver']},
+        ]
+        self.params = pg.parametertree.Parameter(name='params', type='group', children=params)
+        self.setParameters(self.params)
 
-    axisChanged = QtCore.Signal(object)
 
+class LabelTree(QtGui.QWidget):
+    labelsChanged = QtCore.Signal()
+    
     def __init__(self, parent=None):
         QtGui.QWidget.__init__(self, parent)
-        self.layout = QtGui.QVBoxLayout()
+        self.layout = QtGui.QGridLayout()
         self.setLayout(self.layout)
-        self.radios = []
-        for ax in ('right', 'dorsal', 'anterior'):
-            r = QtGui.QRadioButton(ax, parent=self)
-            self.radios.append(r)
-            self.layout.addWidget(r)
-            r.toggled.connect(self.radioToggled)
-
-        self.radios[0].setChecked(True)
-
-    def radioToggled(self, b):
-        if b:
-            for i in range(3):
-                if self.radios[i].isChecked():
-                    self.axis = i
-                    break
-            self.axisChanged.emit(self.axis)
-
-
-
-class LabelTree(QtGui.QTreeWidget):
-    def __init__(self, parent=None):
-        QtGui.QTreeWidget.__init__(self, parent)
-        self.header().setResizeMode(QtGui.QHeaderView.ResizeToContents)
-        self.headerItem().setText(0, "id")
-        self.headerItem().setText(1, "name")
-        self.headerItem().setText(2, "color")
-        self.labels = {}
+        self.layout.setSpacing(0)
+        self.layout.setContentsMargins(0,0,0,0)
+        
+        self.tree = QtGui.QTreeWidget(self)
+        self.layout.addWidget(self.tree, 0, 0)
+        self.tree.header().setResizeMode(QtGui.QHeaderView.ResizeToContents)
+        self.tree.headerItem().setText(0, "id")
+        self.tree.headerItem().setText(1, "name")
+        self.tree.headerItem().setText(2, "color")
+        self.labelsById = {}
+        self.labelsByAcronym = {}
         self.checked = set()
-        self.itemChanged.connect(self.itemChange)
+        self.tree.itemChanged.connect(self.itemChange)
+        
+        self.layerBtn = QtGui.QPushButton('Color by cortical layer')
+        self.layout.addWidget(self.layerBtn, 1, 0)
+        self.layerBtn.clicked.connect(self.colorByLayer)
+        
+        self.resetBtn = QtGui.QPushButton('Reset colors')
+        self.layout.addWidget(self.resetBtn, 2, 0)
+        self.resetBtn.clicked.connect(self.resetColors)
 
     def addLabel(self, id, parent, name, acronym, color):
         item = QtGui.QTreeWidgetItem([acronym, name, ''])
         item.setFlags(item.flags() | QtCore.Qt.ItemIsUserCheckable)
         item.setCheckState(0, QtCore.Qt.Unchecked)
 
-        if parent in self.labels:
-            root = self.labels[parent]['item']
+        if parent in self.labelsById:
+            root = self.labelsById[parent]['item']
         else:
-            root = self.invisibleRootItem()
+            root = self.tree.invisibleRootItem()
             
         root.addChild(item)
         
         btn = pg.ColorButton(color=pg.mkColor(color))
-        self.setItemWidget(item, 2, btn)
+        btn.defaultColor = color
+        self.tree.setItemWidget(item, 2, btn)
         
-        self.labels[id] = {'item': item, 'btn': btn}
+        self.labelsById[id] = {'item': item, 'btn': btn}
         item.id = id
+        self.labelsByAcronym[acronym] = self.labelsById[id]
 
-        # btn.sigColorChanged.connect(self.itemChanged)
+        btn.sigColorChanged.connect(self.itemColorChanged)
         # btn.sigColorChanging.connect(self.imageChanged)
 
     def itemChange(self, item, col):
@@ -145,12 +158,51 @@ class LabelTree(QtGui.QTreeWidget):
             self.checked.add(item.id)
         else:
             self.checked.remove(item.id)
+        self.labelsChanged.emit()
+
+    def itemColorChanged(self, *args):
+        self.labelsChanged.emit()
 
     def lookupTable(self):
         lut = np.zeros((2**16, 4), dtype=np.ubyte)
         for id in self.checked:
-            lut[id] = self.labels[id]['btn'].color(mode='byte')
+            if id >= lut.shape[0]:
+                continue
+            lut[id] = self.labelsById[id]['btn'].color(mode='byte')
         return lut
+    
+    def colorByLayer(self, root=None):
+        try:
+            unblock = False
+            if not isinstance(root, pg.QtGui.QTreeWidgetItem):
+                self.blockSignals(True)
+                unblock = True
+                root = self.labelsByAcronym['Isocortex']['item']
+                
+            name = str(root.text(1))
+            if ', layer' in name.lower():
+                layer = name.split(' ')[-1]
+                layer = {'1': 0, '2': 1, '2/3': 2, '4': 3, '5': 4, '6a': 5, '6b': 6}[layer]
+                btn = self.labelsById[root.id]['btn']
+                btn.setColor(pg.intColor(layer, 10))
+                root.setCheckState(0, QtCore.Qt.Checked)
+                
+            for i in range(root.childCount()):
+                self.colorByLayer(root.child(i))
+        finally:
+            if unblock:
+                self.blockSignals(False)
+                self.labelsChanged.emit()
+
+    def resetColors(self):
+        try:
+            self.blockSignals(True)
+            for k,v in self.labelsById.items():
+                v['btn'].setColor(pg.mkColor(v['btn'].defaultColor))
+                v['item'].setCheckState(0, QtCore.Qt.Unchecked)
+        finally:
+            self.blockSignals(False)
+            self.labelsChanged.emit()
 
 
 class VolumeView(QtGui.QSplitter):
@@ -305,6 +357,14 @@ class VolumeSliceView(QtGui.QWidget):
         self.img2.atlasImg.setLookupTable(self.lut.getLookupTable(n=256))
         self.img2.atlasImg.setLevels(self.lut.getLevels())
 
+    def setOverlay(self, o):
+        self.img1.setOverlay(o)
+        self.img2.setOverlay(o)
+        
+    def setLabelOpacity(self, o):
+        self.img1.setLabelOpacity(o)
+        self.img2.setLabelOpacity(o)
+
 
 class LabelImageItem(QtGui.QGraphicsItemGroup):
     def __init__(self):
@@ -315,7 +375,7 @@ class LabelImageItem(QtGui.QGraphicsItemGroup):
         self.labelImg.setParentItem(self)
         self.labelImg.setZValue(10)
         self.labelImg.setOpacity(0.5)
-        self.setOverlay(False)
+        self.setOverlay(True)
        
         self.labelColors = {}
 
@@ -332,11 +392,13 @@ class LabelImageItem(QtGui.QGraphicsItemGroup):
         self.labelImg.setLookupTable(lut)
 
     def setOverlay(self, overlay):
-        return
         if overlay:
             self.labelImg.setCompositionMode(QtGui.QPainter.CompositionMode_Overlay)
         else:
             self.labelImg.setCompositionMode(QtGui.QPainter.CompositionMode_SourceOver)
+
+    def setLabelOpacity(self, o):
+        self.labelImg.setOpacity(o)
 
     def setLabelColors(self, colors):
         self.labelColors = colors
