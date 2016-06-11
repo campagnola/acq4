@@ -25,7 +25,7 @@
       </attribute>
       <layout class="QGridLayout" name="gridLayout_2">
        <item row="0" column="0">
-        <widget class="QTreeWidget" name="treeWidget">
+        <widget class="QTreeWidget" name="reagentTree">
          <property name="alternatingRowColors">
           <bool>true</bool>
          </property>
@@ -134,101 +134,113 @@
       </attribute>
       <layout class="QGridLayout" name="gridLayout_3">
        <item row="0" column="0">
-        <widget class="QTreeWidget" name="treeWidget">
-         <column>
-          <property name="text">
-           <string>Solution</string>
-          </property>
-         </column>
-         <item>
-          <property name="text">
-           <string>aCSF - Dissection</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>aCSF - Holding</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>aCSF - Recording</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>Internal</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>Misc</string>
-          </property>
-         </item>
-        </widget>
-       </item>
-       <item row="0" column="1" rowspan="3">
-        <widget class="QTreeWidget" name="treeWidget">
-         <column>
-          <property name="text">
-           <string/>
-          </property>
-         </column>
-         <item>
-          <property name="text">
-           <string>Concentrations (mM)</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>Ion Concentrations (estimated)</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>Ion Concentrations (measured)</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>Osmolarity (estimated)</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>Osmolarity (measured)</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>Reversal Potentials</string>
-          </property>
-          <item>
-           <property name="text">
-            <string>Solution type</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>Against</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>Temperature (C)</string>
-           </property>
-          </item>
-         </item>
-        </widget>
-       </item>
-       <item row="2" column="0">
-        <widget class="QPlainTextEdit" name="plainTextEdit"/>
-       </item>
-       <item row="1" column="0">
-        <widget class="QLabel" name="label">
-         <property name="text">
-          <string>Notes</string>
+        <widget class="QSplitter" name="splitter_2">
+         <property name="orientation">
+          <enum>Qt::Horizontal</enum>
          </property>
+         <widget class="QSplitter" name="splitter">
+          <property name="orientation">
+           <enum>Qt::Vertical</enum>
+          </property>
+          <widget class="QTreeWidget" name="treeWidget">
+           <column>
+            <property name="text">
+             <string>Solution</string>
+            </property>
+           </column>
+           <item>
+            <property name="text">
+             <string>aCSF - Dissection</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>aCSF - Holding</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>aCSF - Recording</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Internal</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Misc</string>
+            </property>
+           </item>
+          </widget>
+          <widget class="QWidget" name="">
+           <layout class="QVBoxLayout" name="verticalLayout">
+            <item>
+             <widget class="QLabel" name="label">
+              <property name="text">
+               <string>Notes</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPlainTextEdit" name="plainTextEdit"/>
+            </item>
+           </layout>
+          </widget>
+         </widget>
+         <widget class="QTreeWidget" name="treeWidget">
+          <column>
+           <property name="text">
+            <string/>
+           </property>
+          </column>
+          <item>
+           <property name="text">
+            <string>Concentrations (mM)</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Ion Concentrations (estimated)</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Ion Concentrations (measured)</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Osmolarity (estimated)</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Osmolarity (measured)</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Reversal Potentials</string>
+           </property>
+           <item>
+            <property name="text">
+             <string>Solution type</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Against</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Temperature (C)</string>
+            </property>
+           </item>
+          </item>
+         </widget>
         </widget>
        </item>
       </layout>
@@ -261,6 +273,43 @@ p, li { white-space: pre-wrap; }
            <string>Volume (mL)</string>
           </property>
          </column>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="constraintsTab">
+      <attribute name="title">
+       <string>Constraints</string>
+      </attribute>
+      <layout class="QGridLayout" name="gridLayout_5">
+       <item row="0" column="0">
+        <widget class="QTreeWidget" name="treeWidget_3">
+         <column>
+          <property name="text">
+           <string>Property</string>
+          </property>
+         </column>
+         <column>
+          <property name="text">
+           <string>Constraint</string>
+          </property>
+         </column>
+         <column>
+          <property name="text">
+           <string>Value</string>
+          </property>
+         </column>
+         <item>
+          <property name="text">
+           <string>[K+]</string>
+          </property>
+          <property name="text">
+           <string>Range</string>
+          </property>
+          <property name="text">
+           <string>2.5 &lt;= x &lt;= 3</string>
+          </property>
+         </item>
         </widget>
        </item>
       </layout>

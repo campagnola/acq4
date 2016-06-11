@@ -89,4 +89,14 @@ class SolutionEditorWidget(QtGui.QWidget):
         QtGui.QWidget.__init__(self, parent)
         self.ui = Ui_Form()
         self.ui.setupUi(self)
-
+        
+        self.reagents = Reagents()
+        
+    def loadReagents(self, data):
+        self.reagents.restore(data)
+        self.updateReagentList()
+        
+    def updateReagentList(self):
+        oldGroups = OrderedDict([(item.text(0), item) for item in self.ui.reagentTree.topLevelItems()])
+        newGroups = self.reagents.groups()
+        
