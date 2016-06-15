@@ -54,6 +54,8 @@ class Reagents(object):
     def restore(self, data):
         self.data = _loadArray(data)
 
+    def groups(self):
+        return np.unique(self.data['group'])
     
     
 def _saveArray(data):
@@ -97,6 +99,18 @@ class SolutionEditorWidget(QtGui.QWidget):
         self.updateReagentList()
         
     def updateReagentList(self):
-        oldGroups = OrderedDict([(item.text(0), item) for item in self.ui.reagentTree.topLevelItems()])
+        tree = self.ui.reagentTree
+        items = [tree.topLevelItem(i) for i in range(tree.topLevelItemCount())]
+        oldGroups = OrderedDict([(item.text(0), item) for item in items])
         newGroups = self.reagents.groups()
-        
+        tree.clear()
+        grpItems = {}
+        for reagent in self.reagents.data:
+            item = QtGui.QTreeWidgetItem([reagent['name']])
+            group = reagent['group']
+            if group not in grpItems:
+                grpItems[group] = QtGui.QTreeWidgetItem([group])
+                tree.addTopLevelItem(grpItems[group])
+                grpItems[group].setExpanded(True)
+            grpItem = grpItems[group]
+            grpItem.addChild(item)
