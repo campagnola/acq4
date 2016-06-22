@@ -17,118 +17,15 @@
    <item row="0" column="0">
     <widget class="QTabWidget" name="tabWidget">
      <property name="currentIndex">
-      <number>0</number>
+      <number>1</number>
      </property>
      <widget class="QWidget" name="reagents">
       <attribute name="title">
        <string>Reagents</string>
       </attribute>
-      <layout class="QGridLayout" name="gridLayout_2">
-       <item row="0" column="0">
-        <widget class="QTreeWidget" name="reagentTree">
-         <property name="alternatingRowColors">
-          <bool>true</bool>
-         </property>
-         <column>
-          <property name="text">
-           <string>Reagent</string>
-          </property>
-         </column>
-         <column>
-          <property name="text">
-           <string>Formula</string>
-          </property>
-         </column>
-         <column>
-          <property name="text">
-           <string>MW (g/mol)</string>
-          </property>
-         </column>
-         <column>
-          <property name="text">
-           <string>Osmolarity (mOsm)</string>
-          </property>
-         </column>
-         <column>
-          <property name="text">
-           <string>Cost (per g)</string>
-          </property>
-         </column>
-         <column>
-          <property name="text">
-           <string>Na</string>
-          </property>
-         </column>
-         <column>
-          <property name="text">
-           <string>K</string>
-          </property>
-         </column>
-         <column>
-          <property name="text">
-           <string>Cl</string>
-          </property>
-         </column>
-         <column>
-          <property name="text">
-           <string>Ca</string>
-          </property>
-         </column>
-         <column>
-          <property name="text">
-           <string>Mg</string>
-          </property>
-         </column>
-         <column>
-          <property name="text">
-           <string>SO4</string>
-          </property>
-         </column>
-         <column>
-          <property name="text">
-           <string>PO4</string>
-          </property>
-         </column>
-         <column>
-          <property name="text">
-           <string>Cs</string>
-          </property>
-         </column>
-         <item>
-          <property name="text">
-           <string>Ions</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>pH Buffers</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>Metabolites</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>Antioxidants</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>Toxins</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>Markers</string>
-          </property>
-         </item>
-        </widget>
-       </item>
-      </layout>
+      <layout class="QGridLayout" name="gridLayout_2"/>
      </widget>
-     <widget class="QWidget" name="solutions">
+     <widget class="QWidget" name="solutionsTab">
       <attribute name="title">
        <string>Solutions</string>
       </attribute>
@@ -174,7 +71,7 @@
             </property>
            </item>
           </widget>
-          <widget class="QWidget" name="">
+          <widget class="QWidget" name="layoutWidget">
            <layout class="QVBoxLayout" name="verticalLayout">
             <item>
              <widget class="QLabel" name="label">
@@ -245,7 +142,7 @@
        </item>
       </layout>
      </widget>
-     <widget class="QWidget" name="recipes">
+     <widget class="QWidget" name="recipesTab">
       <attribute name="title">
        <string>Recipes</string>
       </attribute>
