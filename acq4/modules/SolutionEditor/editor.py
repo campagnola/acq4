@@ -11,11 +11,6 @@ from .constraintEditorTemplate import Ui_constraintEditor
 IONS = ['Na', 'K', 'Cl', 'Ca', 'Mg', 'SO4', 'PO4', 'Cs']
 
 
-GROUP_FONT = QtGui.QFont()
-GROUP_FONT.setWeight(QtGui.QFont.Bold)
-
-
-
 class Reagents(object):
     def __init__(self):
         self._dtype = [
@@ -162,10 +157,8 @@ class ReagentEditorWidget(QtGui.QWidget):
             item.setFlags(QtCore.Qt.ItemIsEditable)
             group = reagent['group']
             if group not in grpItems:
-                grpItems[group] = QtGui.QTreeWidgetItem([group])
-                grpItems[group].setFont(0, GROUP_FONT)
+                grpItems[group] = GroupItem(group, adder='add reagent')
                 tree.addTopLevelItem(grpItems[group])
-                grpItems[group].setExpanded(True)
             grpItem = grpItems[group]
             grpItem.addChild(item)
 
@@ -182,6 +175,8 @@ class SolutionEditorWidget(QtGui.QWidget):
         self.ui = Ui_solutionEditor()
         self.ui.setupUi(self)
         
+        self.ui.solutionList.setEditTriggers(QtGui.QAbstractItemView.EditKeyPressed | QtGui.QAbstractItemView.SelectedClicked)
+        
         self.ui.solutionTable.setHeaderLabels([''])
         #self.ui.solutionTable.setUniformRowHeights(True)
         self.ui.solutionTable.clear()
@@ -195,11 +190,9 @@ class SolutionEditorWidget(QtGui.QWidget):
             'Reversal Potentials',
         ]
         for name in names:
-            item = QtGui.QTreeWidgetItem([name])
-            item.setFont(0, GROUP_FONT)
+            item = GroupItem(name)
             self.solnTreeItems[name] = item
             self.ui.solutionTable.addTopLevelItem(item)
-            item.setExpanded(True)
             
         self.estIonConcItems = {}
         self.measIonConcItems = {}
@@ -219,9 +212,9 @@ class SolutionEditorWidget(QtGui.QWidget):
         self.ui.splitter_2.setStretchFactor(1, 3)
         self.ui.splitter.setStretchFactor(0, 2)
         self.ui.splitter.setStretchFactor(1, 1)
-        self.ui.solutionList.itemChanged.connect(self.solutionChanged)
+        self.ui.solutionList.sigItemTextChanged.connect(self.solutionListTextChanged)
+        self.ui.solutionList.sigItemCheckStateChanged.connect(self.solutionListCheckStateChanged)
         self.ui.reverseTempSpin.valueChanged.connect(self.updateSolutionTree)
-        
 
     def updateSolutionList(self):
         slist = self.ui.solutionList
@@ -229,39 +222,44 @@ class SolutionEditorWidget(QtGui.QWidget):
         
         grpItems = {}
         for soln in self.solutions.data:
-            item = QtGui.QTreeWidgetItem([soln.name])
+            item = pg.TreeWidgetItem([soln.name])
             item.setFlags(QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsDragEnabled | QtCore.Qt.ItemIsEditable | QtCore.Qt.ItemIsUserCheckable)
             item.setCheckState(0, QtCore.Qt.Unchecked)
             item.solution = soln
             group = soln.group
             if group not in grpItems:
-                grpItems[group] = QtGui.QTreeWidgetItem([group])
-                grpItems[group].setFont(0, GROUP_FONT)
+                grpItems[group] = GroupItem(group, adder='add solution', editable=True, checkable=True)
                 slist.addTopLevelItem(grpItems[group])
-                grpItems[group].setExpanded(True)
             grpItem = grpItems[group]
             grpItem.addChild(item)
             
-        self.addGroupItem = HtmlItem('+ <a href="nowhere">add group</a>')
+        self.addGroupItem = HtmlItem('+ <a href="/">add group</a>')
         slist.addTopLevelItem(self.addGroupItem)
         self.addGroupItem.label.linkActivated.connect(self.addGroup)
         
     def addGroup(self):
-        item = pg.TreeWidgetItem(['New Group'])
+        item = GroupItem('New Group', adder='add solution')
         self.ui.solutionList.insertTopLevelItem(self.ui.solutionList.topLevelItemCount()-1, item)
-        item.setExpanded(True)
-        additem = HtmlItem('+ <a href="nowhere">add solution</a>')
-        item.addChild(additem)
             
-    def solutionChanged(self, item, column):
-        checked = item.checkState(0) == QtCore.Qt.Checked
-        if checked and item.solution not in self.selectedSolutions:
-            self.selectedSolutions.append(item.solution)
-        elif not checked and item.solution in self.selectedSolutions:
-            self.selectedSolutions.remove(item.solution)
+    def solutionListCheckStateChanged(self, item, column):
+        checked = item.isChecked(0)
+        if isinstance(item, GroupItem):
+            for child in item.childItems():
+                child.setChecked(0, checked)
+        else:
+            selected = item.solution in self.selectedSolutions
+            if checked and not selected:
+                self.selectedSolutions.append(item.solution)
+            elif not checked and selected:
+                self.selectedSolutions.remove(item.solution)
+        self.updateSolutionTree()
+
+    def solutionListTextChanged(self, item, column):
+        if isinstance(item, GroupItem):
+            for child in item.childItems():
+                child.solution.group = str(item.text(0))
         else:
             item.solution.name = str(item.text(0))
-        self.updateSolutionTree()
 
     def updateSolutionTree(self):
         self.ui.solutionTable.setColumnCount(len(self.selectedSolutions) + 1)
@@ -330,6 +328,49 @@ class HtmlItem(pg.TreeWidgetItem):
         self.label.setTextInteractionFlags(QtCore.Qt.TextBrowserInteraction)
         self.setWidget(0, self.label)
         
+    def treeWidgetChanged(self, *args):
+        pg.TreeWidgetItem.treeWidgetChanged(self, *args)
+
+
+class GroupItem(pg.TreeWidgetItem):
+    def __init__(self, name, adder=None, editable=False, checkable=False):
+        pg.TreeWidgetItem.__init__(self, [name])
+        font = QtGui.QFont()
+        font.setWeight(QtGui.QFont.Bold)
+        self.setFont(0, font)
+        self.setExpanded(True)
+        if editable:
+            self.setFlags(self.flags() | QtCore.Qt.ItemIsEditable)
+        if checkable:
+            self.setFlags(self.flags() | QtCore.Qt.ItemIsUserCheckable)
+            self.setChecked(0, False)
+        
+        if adder is None:
+            self.additem = None
+        else:
+            self.additem = HtmlItem('+ <a href="/">%s</a>' % adder)
+            pg.TreeWidgetItem.addChild(self, self.additem)
+            self.addClicked = self.additem.label.linkActivated
+
+    def addChild(self, item):
+        if self.additem is None:
+            pg.TreeWidgetItem.addChild(self, item)
+        else:
+            self.insertChild(self.childCount()-1, item)
+
+    def childItems(self):
+        items = pg.TreeWidgetItem.childItems(self)
+        if self.additem is not None:
+            items.remove(self.additem)
+        return items
+    
+    def clear(self):
+        for item in self.childItems():
+            self.removeItem(item)
+
+    def treeWidgetChanged(self, *args):
+        pg.TreeWidgetItem.treeWidgetChanged(self, *args)
+
 
 class RecipeEditorWidget(QtGui.QWidget):
     def __init__(self, parent=None):

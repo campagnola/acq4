@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'reagentEditor.ui'
+# Form implementation generated from reading ui file 'reagentEditorTemplate.ui'
 #
 # Created by: PyQt4 UI code generator 4.11.4
 #
@@ -28,7 +28,7 @@ class Ui_reagentEditor(object):
         reagentEditor.resize(400, 300)
         self.gridLayout = QtGui.QGridLayout(reagentEditor)
         self.gridLayout.setObjectName(_fromUtf8("gridLayout"))
-        self.reagentTree = QtGui.QTreeWidget(reagentEditor)
+        self.reagentTree = TreeWidget(reagentEditor)
         self.reagentTree.setAlternatingRowColors(True)
         self.reagentTree.setObjectName(_fromUtf8("reagentTree"))
         item_0 = QtGui.QTreeWidgetItem(self.reagentTree)
@@ -67,3 +67,4 @@ class Ui_reagentEditor(object):
         self.reagentTree.topLevelItem(5).setText(0, _translate("reagentEditor", "Markers", None))
         self.reagentTree.setSortingEnabled(__sortingEnabled)
 
+from acq4.pyqtgraph import TreeWidget

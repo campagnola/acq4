@@ -107,4 +107,4 @@ class Ui_solutionEditor(object):
         self.label_4.setText(_translate("solutionEditor", "Reversal temperature", None))
         self.reverseTempSpin.setSuffix(_translate("solutionEditor", "C", None))
 
-from pyqtgraph import TreeWidget
+from acq4.pyqtgraph import TreeWidget
