@@ -92,7 +92,13 @@ class Solution(object):
     def __init__(self, name, group):
         self.name = name
         self.group = group
+        self.type = 'internal' if 'internal' in group.lower() else 'external'
+        self.compareAgainst = None
         self.reagents = {}
+        
+        # empirically determined values:
+        self.ionConcentrations = {}
+        self.osmolarity = None
         
     def __setitem__(self, name, concentration):
         """Set the concentration of a particular reagent.
@@ -207,6 +213,9 @@ class SolutionEditorWidget(QtGui.QWidget):
             self.solnTreeItems[name] = item
             self.ui.solutionTable.addTopLevelItem(item)
             
+        self.solutionTypeItem = SolutionTypeItem()
+        self.solnTreeItems['Reversal Potentials'].addChild(self.solutionTypeItem)
+        
         self.estIonConcItems = {}
         self.measIonConcItems = {}
         self.ionReversalItems = {}
@@ -348,9 +357,13 @@ class SolutionEditorWidget(QtGui.QWidget):
             # Calculate osmolarity
             osm = np.sum(concs * reagents['osmolarity'])
             self.solnTreeItems['Osmolarity (estimated)'].setText(i+1, '%0.1f'%osm)
-
+        
+        # resize columns
         for i in range(len(self.selectedSolutions)):
             self.ui.solutionTable.resizeColumnToContents(i)
+
+        # update reversal potential special fields
+        self.solutionTypeItem.setSolutions(self.selectedSolutions)
 
 
 class ReagentItem(pg.TreeWidgetItem):
@@ -377,6 +390,20 @@ class ReagentItem(pg.TreeWidgetItem):
             sol.reagents[self.name] = float(t)
         self.setText(col, editor.text())
 
+
+class SolutionTypeItem(pg.TreeWidgetItem):
+    def __init__(self):
+        self.solutions = []
+        pg.TreeWidgetItem.__init__(self, ['Solution type'])
+        self.setFlags(self.flags() | QtCore.Qt.ItemIsEditable)
+        
+    def setSolutions(self, solutions):
+        self.solutions = solutions
+        for i,sol in enumerate(solutions):
+            self.setText(i+1, sol.type)
+            
+    
+            
 
 class ItemDelegate(QtGui.QItemDelegate):
     """Delegate that allows tree items to create their own per-column editors.
