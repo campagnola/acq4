@@ -189,7 +189,7 @@ class SolutionEditorWidget(QtGui.QWidget):
 
         self.addGroupItem = HtmlItem('+ <a href="/">add group</a>')
         self.ui.solutionList.addTopLevelItem(self.addGroupItem)
-        self.addGroupItem.label.linkActivated.connect(self.addGroup)
+        self.addGroupItem.label.linkActivated.connect(lambda: self.addGroup('New Group'))
         
         self.ui.solutionTable.setSelectionBehavior(QtGui.QAbstractItemView.SelectItems)
         self.solnTableDelegate = ItemDelegate(self.ui.solutionTable)  # allow items to specify their own editors
@@ -267,7 +267,7 @@ class SolutionEditorWidget(QtGui.QWidget):
         for soln in self.solutions.data:
             item = pg.TreeWidgetItem([soln.name])
             item.setFlags(QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsDragEnabled | QtCore.Qt.ItemIsEditable | QtCore.Qt.ItemIsUserCheckable)
-            item.setCheckState(0, QtCore.Qt.Unchecked)
+            item.setCheckState(0, QtCore.Qt.Checked if soln in self.selectedSolutions else QtCore.Qt.Unchecked)
             item.solution = soln
             group = soln.group
             if group not in grpItems:
@@ -277,7 +277,6 @@ class SolutionEditorWidget(QtGui.QWidget):
 
         self.reverseAgainstItem.setAllSolutions(self.solutions)
 
-        
     def addGroup(self, name):
         item = GroupItem(name, adder='add solution', editable=True, checkable=True)
         self.ui.solutionList.insertTopLevelItem(self.ui.solutionList.topLevelItemCount()-1, item)
@@ -426,8 +425,8 @@ class ReverseAgainstItem(pg.TreeWidgetItem):
     def __init__(self):
         self.solutions = []
         pg.TreeWidgetItem.__init__(self, ['Reverse against'])
-        self.menu = QtGui.QMenu()
-        self.menu.addAction("some soluition")
+        self.internalMenu = QtGui.QMenu()
+        self.externalMenu = QtGui.QMenu()
         
     def setSolutions(self, solutions):
         self.solutions = solutions
@@ -435,18 +434,22 @@ class ReverseAgainstItem(pg.TreeWidgetItem):
             self.setText(i+1, sol.compareAgainst)
             
     def setAllSolutions(self, solutions):
-        self.menu.clear()
-        grp = None
-        for sol in solutions.data:
-            if sol.group != grp:
-                grp = sol.group
-                label = QtGui.QLabel(grp)
-                font = label.font()
-                font.setWeight(font.Bold)
-                label.setFont(font)
-                act = QtGui.QWidgetAction(label)
-                self.menu.addAction(act)
-            self.menu.addAction("  " + sol.name, self.selectionChanged)
+        for menu, soltyp in [(self.internalMenu, 'internal'), (self.externalMenu, 'external')]:
+            menu.clear()
+            grp = None
+            for sol in solutions.data:
+                if sol.type == soltyp:
+                    continue
+                if sol.group != grp:
+                    grp = sol.group
+                    label = QtGui.QLabel(grp)
+                    font = label.font()
+                    font.setWeight(font.Bold)
+                    label.setFont(font)
+                    act = QtGui.QWidgetAction(menu)
+                    act.setDefaultWidget(label)
+                    menu.addAction(act)
+                menu.addAction("  " + sol.name, self.selectionChanged)
             
     def selectionChanged(self):
         action = self.treeWidget().sender()
@@ -458,7 +461,8 @@ class ReverseAgainstItem(pg.TreeWidgetItem):
         tw = self.treeWidget()
         x = tw.header().sectionPosition(col)
         y = tw.header().height() + tw.visualItemRect(self).bottom()
-        self.menu.popup(tw.mapToGlobal(QtCore.QPoint(x, y)))
+        menu = self.internalMenu if self.solutions[col-1].type == 'internal' else self.externalMenu
+        menu.popup(tw.mapToGlobal(QtCore.QPoint(x, y)))
         self._activeColumn = col
         return None
 
