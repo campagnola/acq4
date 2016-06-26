@@ -185,7 +185,7 @@ class SolutionEditorWidget(QtGui.QWidget):
         self.ui = Ui_solutionEditor()
         self.ui.setupUi(self)
         
-        self.ui.solutionList.setEditTriggers(QtGui.QAbstractItemView.EditKeyPressed | QtGui.QAbstractItemView.SelectedClicked)
+        self.ui.solutionList.setEditTriggers(QtGui.QAbstractItemView.EditKeyPressed)
 
         self.addGroupItem = HtmlItem('+ <a href="/">add group</a>')
         self.ui.solutionList.addTopLevelItem(self.addGroupItem)
@@ -216,7 +216,9 @@ class SolutionEditorWidget(QtGui.QWidget):
             self.ui.solutionTable.addTopLevelItem(item)
             
         self.solutionTypeItem = SolutionTypeItem()
+        self.reverseAgainstItem = ReverseAgainstItem()
         self.solnTreeItems['Reversal Potentials'].addChild(self.solutionTypeItem)
+        self.solnTreeItems['Reversal Potentials'].addChild(self.reverseAgainstItem)
         
         self.estIonConcItems = {}
         self.measIonConcItems = {}
@@ -241,18 +243,7 @@ class SolutionEditorWidget(QtGui.QWidget):
         self.ui.reverseTempSpin.valueChanged.connect(self.updateSolutionTree)
 
         self.ui.solutionTable.itemSelectionChanged.connect(self.selectionChanged)
-
-    #def updateReagentList(self):
-        #rlist = []
-        #groups = OrderedDict()
-        #for r in self.solutions.reagents.data:
-            #groups.setdefault(r['group'], [])
-            #groups[r['group']].append(r['name'])
-        #for grp, reagents in groups.items():
-            #rlist.append('__- '+grp+' -')
-            #for r in reagents:
-                #rlist.append('    '+r)
-        #self.solnTreeItems['Concentrations (mM)'].setAddList(rlist)
+        self.ui.solutionTable.itemClicked.connect(self.itemClicked)
 
     def selectionChanged(self):
         selection = self.ui.solutionTable.selectionModel().selection().indexes()
@@ -261,6 +252,10 @@ class SolutionEditorWidget(QtGui.QWidget):
         item, col = self.ui.solutionTable.itemFromIndex(selection[0])
         if item.flags() & QtCore.Qt.ItemIsEditable == QtCore.Qt.ItemIsEditable:
             self.ui.solutionTable.editItem(item, col)
+
+    def itemClicked(self, item, col):
+        if hasattr(item, 'itemClicked'):
+            item.itemClicked(col)
 
     def updateSolutionList(self):
         slist = self.ui.solutionList
@@ -279,10 +274,9 @@ class SolutionEditorWidget(QtGui.QWidget):
                 grpItems[group] = self.addGroup(group)
             grpItem = grpItems[group]
             grpItem.addChild(item)
-        
-        # should probably do this whenever reagent changes are detected
-        #self.updateReagentList()
-            
+
+        self.reverseAgainstItem.setAllSolutions(self.solutions)
+
         
     def addGroup(self, name):
         item = GroupItem(name, adder='add solution', editable=True, checkable=True)
@@ -383,6 +377,7 @@ class SolutionEditorWidget(QtGui.QWidget):
 
         # update reversal potential special fields
         self.solutionTypeItem.setSolutions(self.selectedSolutions)
+        self.reverseAgainstItem.setSolutions(self.selectedSolutions)
 
 
 class ReagentItem(pg.TreeWidgetItem):
@@ -414,15 +409,59 @@ class SolutionTypeItem(pg.TreeWidgetItem):
     def __init__(self):
         self.solutions = []
         pg.TreeWidgetItem.__init__(self, ['Solution type'])
-        self.setFlags(self.flags() | QtCore.Qt.ItemIsEditable)
         
     def setSolutions(self, solutions):
         self.solutions = solutions
         for i,sol in enumerate(solutions):
             self.setText(i+1, sol.type)
             
-    
+    def itemClicked(self, col):
+        text = 'external' if self.text(col) == 'internal' else 'internal'
+        self.setText(col, text)
+        self.solutions[col-1].type = text
+        return None
+
+
+class ReverseAgainstItem(pg.TreeWidgetItem):
+    def __init__(self):
+        self.solutions = []
+        pg.TreeWidgetItem.__init__(self, ['Reverse against'])
+        self.menu = QtGui.QMenu()
+        self.menu.addAction("some soluition")
+        
+    def setSolutions(self, solutions):
+        self.solutions = solutions
+        for i,sol in enumerate(solutions):
+            self.setText(i+1, sol.compareAgainst)
             
+    def setAllSolutions(self, solutions):
+        self.menu.clear()
+        grp = None
+        for sol in solutions.data:
+            if sol.group != grp:
+                grp = sol.group
+                label = QtGui.QLabel(grp)
+                font = label.font()
+                font.setWeight(font.Bold)
+                label.setFont(font)
+                act = QtGui.QWidgetAction(label)
+                self.menu.addAction(act)
+            self.menu.addAction("  " + sol.name, self.selectionChanged)
+            
+    def selectionChanged(self):
+        action = self.treeWidget().sender()
+        text = action.text().strip()
+        self.setText(self._activeColumn, text)
+        self.solutions[self._activeColumn-1].compareAgainst = text
+            
+    def itemClicked(self, col):
+        tw = self.treeWidget()
+        x = tw.header().sectionPosition(col)
+        y = tw.header().height() + tw.visualItemRect(self).bottom()
+        self.menu.popup(tw.mapToGlobal(QtCore.QPoint(x, y)))
+        self._activeColumn = col
+        return None
+
 
 class ItemDelegate(QtGui.QItemDelegate):
     """Delegate that allows tree items to create their own per-column editors.
