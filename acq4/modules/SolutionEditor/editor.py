@@ -179,6 +179,7 @@ class SolutionEditorWidget(QtGui.QWidget):
     def __init__(self, solutions, parent=None):
         self.solutions = solutions
         self.selectedSolutions = []
+        self.showAllReagents = False
         
         QtGui.QWidget.__init__(self, parent)
         self.ui = Ui_solutionEditor()
@@ -190,16 +191,17 @@ class SolutionEditorWidget(QtGui.QWidget):
         self.ui.solutionList.addTopLevelItem(self.addGroupItem)
         self.addGroupItem.label.linkActivated.connect(self.addGroup)
         
+        self.ui.solutionTable.setSelectionBehavior(QtGui.QAbstractItemView.SelectItems)
         self.solnTableDelegate = ItemDelegate(self.ui.solutionTable)  # allow items to specify their own editors
         self.ui.solutionTable.setHeaderLabels([''])
         #self.ui.solutionTable.setUniformRowHeights(True)
         self.ui.solutionTable.clear()
         self.solnTreeItems = {}
 
-        item = GroupItem('Concentrations (mM)', adder='add reagent')
+        item = GroupItem('Concentrations (mM)', adder='show all reagents')
         self.solnTreeItems[str(item.text(0))] = item
         self.ui.solutionTable.addTopLevelItem(item)
-        item.sigAddClicked.connect(self.addReagentClicked)
+        item.sigAddClicked.connect(self.showReagentsClicked)
         
         names = [
             'Ion Concentrations (estimated)',
@@ -238,17 +240,27 @@ class SolutionEditorWidget(QtGui.QWidget):
         self.ui.solutionList.sigItemCheckStateChanged.connect(self.solutionListCheckStateChanged)
         self.ui.reverseTempSpin.valueChanged.connect(self.updateSolutionTree)
 
-    def updateReagentList(self):
-        rlist = []
-        groups = OrderedDict()
-        for r in self.solutions.reagents.data:
-            groups.setdefault(r['group'], [])
-            groups[r['group']].append(r['name'])
-        for grp, reagents in groups.items():
-            rlist.append('__- '+grp+' -')
-            for r in reagents:
-                rlist.append('    '+r)
-        self.solnTreeItems['Concentrations (mM)'].setAddList(rlist)
+        self.ui.solutionTable.itemSelectionChanged.connect(self.selectionChanged)
+
+    #def updateReagentList(self):
+        #rlist = []
+        #groups = OrderedDict()
+        #for r in self.solutions.reagents.data:
+            #groups.setdefault(r['group'], [])
+            #groups[r['group']].append(r['name'])
+        #for grp, reagents in groups.items():
+            #rlist.append('__- '+grp+' -')
+            #for r in reagents:
+                #rlist.append('    '+r)
+        #self.solnTreeItems['Concentrations (mM)'].setAddList(rlist)
+
+    def selectionChanged(self):
+        selection = self.ui.solutionTable.selectionModel().selection().indexes()
+        if len(selection) != 1:
+            return
+        item, col = self.ui.solutionTable.itemFromIndex(selection[0])
+        if item.flags() & QtCore.Qt.ItemIsEditable == QtCore.Qt.ItemIsEditable:
+            self.ui.solutionTable.editItem(item, col)
 
     def updateSolutionList(self):
         slist = self.ui.solutionList
@@ -269,7 +281,7 @@ class SolutionEditorWidget(QtGui.QWidget):
             grpItem.addChild(item)
         
         # should probably do this whenever reagent changes are detected
-        self.updateReagentList()
+        #self.updateReagentList()
             
         
     def addGroup(self, name):
@@ -311,9 +323,13 @@ class SolutionEditorWidget(QtGui.QWidget):
                 count += 1
         self.updateSolutionList()
         
-    def addReagentClicked(self, item, name):
-        item = ReagentItem(name.strip(), self.selectedSolutions)
-        self.solnTreeItems['Concentrations (mM)'].addChild(item)
+    def showReagentsClicked(self, item, name):
+        if self.showAllReagents:
+            self.solnTreeItems['Concentrations (mM)'].addItem.setText('show all reagents')
+        else:
+            self.solnTreeItems['Concentrations (mM)'].addItem.setText('hide unused reagents')
+        self.showAllReagents = not self.showAllReagents
+        self.updateSolutionTree()
 
     def updateSolutionTree(self):
         self.ui.solutionTable.setColumnCount(len(self.selectedSolutions) + 1)
@@ -329,7 +345,10 @@ class SolutionEditorWidget(QtGui.QWidget):
         allReagents = self.solutions.reagents.data['name']
         unknown = [r for r in reagents if r not in allReagents]
         # sort
-        reagents = [x for x in allReagents if x in reagents] + unknown
+        if self.showAllReagents:
+            reagents = list(allReagents) + unknown
+        else:
+            reagents = [x for x in allReagents if x in reagents] + unknown
         
         # update reagent list
         self.reagentItems = {}
@@ -492,7 +511,7 @@ class GroupItem(pg.TreeWidgetItem):
     
     def clear(self):
         for item in self.childItems():
-            self.removeItem(item)
+            self.removeChild(item)
 
     def setAddList(self, l):
         self.addItem.setAddList(l)
@@ -507,8 +526,8 @@ class AdderItem(pg.TreeWidgetItem):
         
         pg.TreeWidgetItem.__init__(self)
         self.setFlags(self.flags() | QtCore.Qt.ItemIsEditable)
-        text = '+ <a href="/">%s</a>' % text
-        self.label = QtGui.QLabel(text)
+        self.label = QtGui.QLabel()
+        self.setText(text)
         self.label.setTextInteractionFlags(QtCore.Qt.TextBrowserInteraction)
         self.label.linkActivated.connect(self.labelClicked)
         self.setWidget(0, self.label)
@@ -517,6 +536,13 @@ class AdderItem(pg.TreeWidgetItem):
         self.addListPopup.triggered.connect(self.addSelected)
         
         self.setAddList(addList)
+
+    def setText(self, col, text=None):
+        if text is None:
+            text = '+ <a href="/">%s</a>' % col
+            self.label.setText(text)
+        else:
+            pg.TreeWidgetItem.setText(self, col, text)
         
     def setAddList(self, addList):
         self.addList = addList
