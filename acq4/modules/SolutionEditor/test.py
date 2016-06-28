@@ -9,39 +9,50 @@ from acq4.modules.SolutionEditor.editor import SolutionEditorWindow
 w = SolutionEditorWindow()
 w.show()
 
-import pyqtgraph as pg
-pg.dbg()
+#import pyqtgraph as pg
+#pg.dbg()
 
-re = w.reagents
-re.add(group='Monovalent Ions', name='Sodium Chloride', formula='NaCl', Na=1, Cl=1)
-re.add(group='Monovalent Ions', name='Potassium Chloride', formula='KCl', K=1, Cl=1)
-re.add(group='Monovalent Ions', name='Sodium Phosphate', formula='NaH2PO4', Na=1, PO4=1)
-re.add(group='Buffers', name='Sodium Bicarbonate', formula='NaHCO3', Na=1)
-re.add(group='Buffers', name='HEPES')
-re.add(group='Divalent Ions', name='MgSO4', Mg=1, SO4=1)
-re.add(group='Divalent Ions', name='CaCl2', Ca=1, Cl=2)
-w.reagentEditor.updateReagentList()
+
+#re = w.reagents
+#re.add(group='Monovalent Ions', name='Sodium Chloride', formula='NaCl', molweight=58.44, osmolaritry=1.84, Na=1, Cl=1)
+#re.add(group='Monovalent Ions', name='Potassium Chloride', formula='KCl', K=1, Cl=1)
+#re.add(group='Monovalent Ions', name='Sodium Phosphate', formula='NaH2PO4', Na=1, PO4=1)
+#re.add(group='Buffers', name='Sodium Bicarbonate', formula='NaHCO3', Na=1)
+#re.add(group='Buffers', name='HEPES')
+#re.add(group='Divalent Ions', name='MgSO4', Mg=1, SO4=1)
+#re.add(group='Divalent Ions', name='CaCl2', Ca=1, Cl=2)
+#w.reagentEditor.updateReagentList()
 
 
 solns = w.solutions
-sol = solns.add('Standard ACSF', group='ACSF - recording')
-sol['Sodium Chloride'] = 135
-sol['Potassium Chloride'] = 3
-sol['Sodium Bicarbonate'] = 22
-sol['Magnesium Sulfate'] = 2
-sol['Calcium Chloride'] = 1.3
+sol = solns.add('Standard ACSF', group='ACSF', against='Standard Internal')
+sol['sodium chloride'] = 123
+sol['potassium chloride'] = 3
+sol['potassium phosphate monobasic'] = 1.25
+sol['sodium bicarbonate'] = 25
+sol['glucose'] = 10
+sol['magnesium sulfate'] = 2
+sol['calcium chloride'] = 1.3
 
-sol = solns.add('Diss. ACSF', group='ACSF - slicing')
-sol['Sodium Chloride'] = 135
-sol['Potassium Chloride'] = 3
-sol['Sodium Bicarbonate'] = 22
-sol['Magnesium Sulfate'] = 2
-sol['Calcium Chloride'] = 1.3
+sol = solns.add('Diss. ACSF', group='ACSF', against='Standard Internal')
+sol['n-methyl-d-glucamine'] = 123
+sol['potassium chloride'] = 3
+sol['potassium phosphate monobasic'] = 1.25
+sol['sodium bicarbonate'] = 25
+sol['glucose'] = 10
+sol['magnesium sulfate'] = 4
+sol['calcium chloride'] = 0.5
+sol['hydrochloric acid'] = 123
 
-sol = solns.add('Standard Internal', group='Internal')
-sol['Potassium Gluconate'] = 135
-sol['Potassium Chloride'] = 3
+sol = solns.add('Standard Internal', group='Internal', against='Standard ACSF')
+sol['potassium gluconate'] = 130
+sol['potassium chloride'] = 4
 sol['HEPES'] = 10
+sol['EGTA'] = 0.3
+sol['phosphocreatine bg'] = 10
+sol['magnesium ATP'] = 4
+sol['GTP sodium hydrate'] = 0.3
+
 
 w.solutionEditor.updateSolutionList()
 

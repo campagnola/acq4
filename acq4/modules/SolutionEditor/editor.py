@@ -8,7 +8,55 @@ from .recipeEditorTemplate import Ui_recipeEditor
 from .constraintEditorTemplate import Ui_constraintEditor
 
 
-IONS = ['Na', 'K', 'Cl', 'Ca', 'Mg', 'SO4', 'PO4', 'Cs']
+IONS = OrderedDict([('Na', 1), ('K', 1), ('Cl', -1), ('Ca', 2), ('Mg', 2), ('SO4', -2), ('PO4', -3), ('Cs', 1)])
+
+DEFAULT_REAGENTS = [
+    ('Monovalent Ions', 'sodium chloride', 'NaCl', 58.44, 1.84, 1, 0, 1),
+    ('Monovalent Ions', 'potassium chloride', 'KCl', 74.56, 1.84, 0, 1, 1),
+    ('Monovalent Ions', 'potassium phosphate monobasic', 'KH2PO4', 136.09, 2.0, 0, 1, 0, 0, 0, 0, 1),
+    ('Monovalent Ions', 'potassium gluconate', '', 234.2, 2.0, 0, 1),
+    ('Monovalent Ions', 'cesium methanesulfonate', 'CsMeSO3', 228.0, 2.0, 0, 0, 0, 0, 0, 0, 0, 1),
+    ('Monovalent Ions', 'cesium chloride', 'CsCl', 228.0, 2.0, 0, 0, 1, 0, 0, 0, 0, 1),
+    ('Sodium Substitutes', 'n-methyl-d-glucamine', 'NMDG', 195.22, 1.0),
+    ('Sodium Substitutes', 'tris HCl', '', 157.6, 2.0, 0, 1),
+    ('Sodium Substitutes', 'tris base', '', 121.1, 1.0),
+    ('Sodium Substitutes', 'choline chloride', '', 139.63, 2.0, 0, 0, 1),
+    ('Buffers', 'sodium bicarbonate', 'NaHCO3', 84.01, 2.0, 1),
+    ('Buffers', 'sodium phosphate monobasic', 'NaH2PO4 (H2O)', 137.99, 2.0, 1, 0, 0, 0, 0, 0, 1),
+    ('Buffers', 'sodium phosphate dibasic', 'Na2HPO4 (7H2O)', 268.1, 3.0, 2, 0, 0, 0, 0, 0, 1),
+    ('Buffers', 'HEPES', '', 238.3, 1.0),
+    ('Sugars', 'glucose', '', 180.16, 1.0),
+    ('Sugars', 'sucrose', '', 342.3, 1.0),
+    ('Sugars', 'myo-inositol', '', 180.16, 1.0),
+    ('Metabolites', 'sodium pyruvate', '', 110.04, 2.0),
+    ('Antioxidants', 'ascorbic acid', '', 176.12, 1.0),
+    ('Antioxidants', 'sodium l-ascorbate', '', 198.11, 2.0, 1),
+    ('Antioxidants', 'n-acetyl-l-cysteine', '', 163.2, 1.0),
+    ('Divalent Ions', 'magnesium sulfate', 'MgSO4 (7H2O)', 246.48, 2.0, 0, 0, 0, 0, 1, 1),
+    ('Divalent Ions', 'calcium chloride', 'CaCl2 (2H2O)', 147.02, 3.0, 0, 0, 2, 1),
+    ('Divalent Ions', 'calcium chloride (anhydrous)', 'CaCl2', 110.98, 3.0, 0, 0, 2, 1),
+    ('Divalent Ions', 'magnesium chloride', 'MgCl2 (6H2O)', 203.31, 3.0, 0, 0, 2, 0, 1),
+    ('Energy sources', 'phosphocreatine bg', '', 453.4, 1.0),
+    ('Energy sources', 'phosphocreatine disodium hydrate', '', 255.08, 3.0, 2),
+    ('Energy sources', 'sodium phosphocreatine', '', 233.09, 2.0, 1),
+    ('Energy sources', 'magnesium ATP', '', 507.2, 2.0, 0, 0, 0, 0, 1),
+    ('Energy sources', 'disodium ATP', '', 551.14, 3.0, 2),
+    ('Energy sources', 'GTP tris', '', 523.2, 2.0),
+    ('Energy sources', 'GTP sodium hydrate', '', 523.18, 2.0, 1),
+    ('Energy sources', 'disodium GTP', '', 0.0, 3.0, 2),
+    ('Toxins', 'picrotoxin', '', 0.0, 1.0),
+    ('Toxins', 'QX314 Cl', '', 298.85, 2.0, 0, 0, 1),
+    ('Markers', 'biocytin', '', 372.48, 1.0),
+    ('Markers', 'alexaflour 488', '', 0.0, 1.0),
+    ('Misc', 'EGTA', '', 380.35, 1.0),
+    ('Misc', 'taurine', '', 0.0, 1.0),
+    ('Misc', 'thiourea', '', 0.0, 1.0),
+    ('Misc', 'kyneurenic acid', '', 0.0, 1.0),
+    ('Acids/bases', 'hydrochloric acid', 'HCl', 36.46, 0.7),
+    ('Acids/bases', 'potassium hydroxide', 'KOH', 0.0, 1.0, 0, 1),
+    ('Acids/bases', 'cesium hydroxide', 'CsOH', 0.0, 1.0, 0, 1),
+]
+
 
 
 class Reagents(object):
@@ -19,10 +67,11 @@ class Reagents(object):
             ('formula', object),
             ('molweight', float),
             ('osmolarity', float),
-            ('cost', float),
         ] + [(ion, float) for ion in IONS] + [('notes', object)]
         self._null = (None, None, None, 0, 0, 0) + (0,)*len(IONS) + (None,)
-        self.data = np.empty(0, dtype=self._dtype)
+        self.data = np.empty(len(DEFAULT_REAGENTS), dtype=self._dtype)
+        for i, reagent in enumerate(DEFAULT_REAGENTS):
+            self.data[i] = reagent + (0,)*(len(self._dtype)-len(reagent))
 
     def add(self, **kwds):
         assert kwds['name'] not in self.data['name'], 'Reagent with this name already exists.'
@@ -68,12 +117,18 @@ class Solutions(object):
         self.data = []
         self.groups = []
 
-    def add(self, name, group):
+    def add(self, name, group, **kwds):
         for s in self.data:
             if s.name == name:
                 raise NameError("Solution with this name already exists.")
-        self.data.append(Solution(name, group))
+        self.data.append(Solution(name, group, **kwds))
         return self.data[-1]
+    
+    def __getitem__(self, name):
+        for sol in self.data:
+            if sol.name == name:
+                return sol
+        raise KeyError(name)
     
     def restore(self, data):
         self.data = []
@@ -87,13 +142,43 @@ class Solutions(object):
             state.append({'name': sol.name, 'group': sol.group, 'reagents': sol.reagents})
         return state
 
-    
+    def recalculate(self, solutions, temperature):
+        """Return estimated ion concentrations, osmolarity, and reversal potentials."""
+        results = {}
+        for soln in solutions:
+            ions, osm = soln.recalculate(self.reagents)
+
+            if soln.compareAgainst is None:
+                revs = {ion: None for ion in IONS}
+            else:
+                against = self[soln.compareAgainst].recalculate(self.reagents)[0]
+                if soln.type == 'external':
+                    external = ions
+                    internal = against
+                else:
+                    external = against
+                    internal = ions
+                R = 8.31446
+                T = temperature + 273.15
+                F = 96485.333
+                revs = {}
+                for ion, z in IONS.items():
+                    if internal[ion] == 0 and external[ion] == 0:
+                        revs[ion] = None
+                    else:
+                        revs[ion] = 1000 * ((R * T) / (z * F)) * np.log((external[ion]+1e-6) / (internal[ion]+1e-6))
+        
+            results[soln.name] = [ions, osm, revs]
+            
+        return results
+
+
 class Solution(object):
-    def __init__(self, name, group):
+    def __init__(self, name, group, against=None):
         self.name = name
         self.group = group
         self.type = 'internal' if 'internal' in group.lower() else 'external'
-        self.compareAgainst = None
+        self.compareAgainst = against
         self.reagents = {}
         
         # empirically determined values:
@@ -116,8 +201,21 @@ class Solution(object):
     def restore(self, reagents):
         self.reagents.clear()
         self.reagents.update(reagents)
-    
-    
+
+    def recalculate(self, reagents):
+        """Calculate ion concentrations and osmolarity.
+        """
+        knownReagents = [r for r in self.reagents.keys() if r in reagents.data['name']]
+        reagents = reagents[knownReagents]
+        concs = np.array([self.reagents[n] for n in reagents['name']])
+        ions = {}
+        for ion in IONS:
+            ions[ion] = np.sum(reagents[ion] * concs)
+        
+        osm = np.sum(concs * reagents['osmolarity'])
+        return ions, osm
+
+
 def _saveArray(data):
     return [_recToDict(rec) for rec in data]
     
@@ -152,6 +250,7 @@ class ReagentEditorWidget(QtGui.QWidget):
         QtGui.QWidget.__init__(self, parent)
         self.ui = Ui_reagentEditor()
         self.ui.setupUi(self)
+        self.updateReagentList()
         
     def updateReagentList(self):
         tree = self.ui.reagentTree
@@ -241,6 +340,8 @@ class SolutionEditorWidget(QtGui.QWidget):
         self.ui.solutionList.sigItemTextChanged.connect(self.solutionListTextChanged)
         self.ui.solutionList.sigItemCheckStateChanged.connect(self.solutionListCheckStateChanged)
         self.ui.reverseTempSpin.valueChanged.connect(self.updateSolutionTree)
+        self.solutionTypeItem.sigChanged.connect(self.updateSolutionTree)
+        self.reverseAgainstItem.sigChanged.connect(self.updateSolutionTree)
 
         self.ui.solutionTable.itemSelectionChanged.connect(self.selectionChanged)
         self.ui.solutionTable.itemClicked.connect(self.itemClicked)
@@ -354,20 +455,19 @@ class SolutionEditorWidget(QtGui.QWidget):
             if reagent in unknown:
                 item.setForeground(0, QtGui.QColor(200, 0, 0))
 
+        results = self.solutions.recalculate(self.selectedSolutions, self.ui.reverseTempSpin.value())
         for i, soln in enumerate(self.selectedSolutions):
-                # Calculate ion concentrations
-            reagents = self.solutions.reagents[soln.reagents.keys()]
-            concs = np.array([soln.reagents[n] for n in reagents['name']])
+            ions, osm, revs = results[soln.name]
             for ion in IONS:
-                tot = np.sum(reagents[ion] * concs)
-                self.estIonConcItems[ion].setText(i+1, '%0.1f'%tot)
-                
+                self.estIonConcItems[ion].setText(i+1, '%0.1f'%ions[ion])
+                if revs[ion] is None:
+                    self.ionReversalItems[ion].setText(i+1, '')
+                else:
+                    self.ionReversalItems[ion].setText(i+1, '%0.1f'%revs[ion])
+                    
             # Set measured ion concentration values
             # (todo)
             self.solnTreeItems['Ion Concentrations (measured)'].setExpanded(False)
-            
-            # Calculate osmolarity
-            osm = np.sum(concs * reagents['osmolarity'])
             self.solnTreeItems['Osmolarity (estimated)'].setText(i+1, '%0.1f'%osm)
         
         # resize columns
@@ -406,6 +506,11 @@ class ReagentItem(pg.TreeWidgetItem):
 
 class SolutionTypeItem(pg.TreeWidgetItem):
     def __init__(self):
+        class SigProxy(QtCore.QObject):
+            sigChanged = QtCore.Signal(object)
+        self._sigprox = SigProxy()
+        self.sigChanged = self._sigprox.sigChanged
+
         self.solutions = []
         pg.TreeWidgetItem.__init__(self, ['Solution type'])
         
@@ -418,11 +523,17 @@ class SolutionTypeItem(pg.TreeWidgetItem):
         text = 'external' if self.text(col) == 'internal' else 'internal'
         self.setText(col, text)
         self.solutions[col-1].type = text
+        self.sigChanged.emit(self)
         return None
 
 
 class ReverseAgainstItem(pg.TreeWidgetItem):
     def __init__(self):
+        class SigProxy(QtCore.QObject):
+            sigChanged = QtCore.Signal(object)
+        self._sigprox = SigProxy()
+        self.sigChanged = self._sigprox.sigChanged
+
         self.solutions = []
         pg.TreeWidgetItem.__init__(self, ['Reverse against'])
         self.internalMenu = QtGui.QMenu()
@@ -456,6 +567,7 @@ class ReverseAgainstItem(pg.TreeWidgetItem):
         text = action.text().strip()
         self.setText(self._activeColumn, text)
         self.solutions[self._activeColumn-1].compareAgainst = text
+        self.sigChanged.emit(self)
             
     def itemClicked(self, col):
         tw = self.treeWidget()
@@ -523,6 +635,9 @@ class GroupItem(pg.TreeWidgetItem):
         font = QtGui.QFont()
         font.setWeight(QtGui.QFont.Bold)
         self.setFont(0, font)
+        self.setForeground(0, pg.mkBrush(255, 255, 255))
+        self.setBackground(0, pg.mkBrush(150, 150, 150))
+        #self.setFirstColumnSpanned(True)
         self.setExpanded(True)
         if editable:
             self.setFlags(self.flags() | QtCore.Qt.ItemIsEditable)
