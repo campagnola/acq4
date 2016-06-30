@@ -1,4 +1,5 @@
 from collections import OrderedDict
+import json
 import numpy as np
 import acq4.pyqtgraph as pg
 from acq4.pyqtgraph.Qt import QtGui, QtCore
@@ -96,7 +97,7 @@ class Reagents(object):
         return _saveArray(self.data)
     
     def restore(self, data):
-        self.data = _loadArray(data)
+        self.data = _loadArray(data, self._dtype)
 
     def groups(self):
         return np.unique(self.data['group'])
@@ -117,12 +118,11 @@ class Solutions(object):
         self.data = []
         self.groups = []
 
-    def add(self, name, group, **kwds):
+    def add(self, soln):
         for s in self.data:
-            if s.name == name:
+            if s.name == soln.name:
                 raise NameError("Solution with this name already exists.")
-        self.data.append(Solution(name, group, **kwds))
-        return self.data[-1]
+        self.data.append(soln)
     
     def __getitem__(self, name):
         for sol in self.data:
@@ -133,13 +133,14 @@ class Solutions(object):
     def restore(self, data):
         self.data = []
         for d in data:
-            sol = self.add(d['name'], d['group'])
-            sol.restore(d['reagents'])
+            sol = Solution()
+            sol.restore(d)
+            self.add(sol)
 
     def save(self):
         state = []
         for sol in self.data:
-            state.append({'name': sol.name, 'group': sol.group, 'reagents': sol.reagents})
+            state.append(sol.save())
         return state
 
     def recalculate(self, solutions, temperature):
@@ -174,10 +175,10 @@ class Solutions(object):
 
 
 class Solution(object):
-    def __init__(self, name, group, against=None):
+    def __init__(self, name=None, group=None, against=None):
         self.name = name
         self.group = group
-        self.type = 'internal' if 'internal' in group.lower() else 'external'
+        self.type = 'internal' if group is not None and 'internal' in group.lower() else 'external'
         self.compareAgainst = against
         self.reagents = {}
         
@@ -198,9 +199,17 @@ class Solution(object):
         """
         return self.reagents[name]
     
-    def restore(self, reagents):
+    def save(self):
+        return {'name': self.name, 'group': self.group, 'reagents': self.reagents,
+                'type': self.type, 'compareAgainst': self.compareAgainst}
+    
+    def restore(self, state):
         self.reagents.clear()
-        self.reagents.update(reagents)
+        self.reagents.update(state['reagents'])
+        self.name = state['name']
+        self.group = state['group']
+        self.type = state['type']
+        self.compareAgainst = state['compareAgainst']
 
     def recalculate(self, reagents):
         """Calculate ion concentrations and osmolarity.
@@ -233,6 +242,7 @@ def _loadArray(data, dtype):
     arr = np.empty(len(data), dtype=dtype)
     for i,rec in enumerate(data):
         _loadRec(arr[i], rec)
+    return arr
         
 def _loadRec(arr, rec):
     for field in arr.dtype.names:
@@ -340,11 +350,12 @@ class SolutionEditorWidget(QtGui.QWidget):
         self.ui.solutionList.sigItemTextChanged.connect(self.solutionListTextChanged)
         self.ui.solutionList.sigItemCheckStateChanged.connect(self.solutionListCheckStateChanged)
         self.ui.reverseTempSpin.valueChanged.connect(self.updateSolutionTree)
-        self.solutionTypeItem.sigChanged.connect(self.updateSolutionTree)
-        self.reverseAgainstItem.sigChanged.connect(self.updateSolutionTree)
+        self.solutionTypeItem.sigChanged.connect(self.recalculate)
+        self.reverseAgainstItem.sigChanged.connect(self.recalculate)
 
         self.ui.solutionTable.itemSelectionChanged.connect(self.selectionChanged)
         self.ui.solutionTable.itemClicked.connect(self.itemClicked)
+        self.ui.solutionTable.resizeColumnToContents(0)
 
     def selectionChanged(self):
         selection = self.ui.solutionTable.selectionModel().selection().indexes()
@@ -359,6 +370,7 @@ class SolutionEditorWidget(QtGui.QWidget):
             item.itemClicked(col)
 
     def updateSolutionList(self):
+        newSel = []
         slist = self.ui.solutionList
         for item in slist.topLevelItems():
             if item is not self.addGroupItem:
@@ -368,7 +380,11 @@ class SolutionEditorWidget(QtGui.QWidget):
         for soln in self.solutions.data:
             item = pg.TreeWidgetItem([soln.name])
             item.setFlags(QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsDragEnabled | QtCore.Qt.ItemIsEditable | QtCore.Qt.ItemIsUserCheckable)
-            item.setCheckState(0, QtCore.Qt.Checked if soln in self.selectedSolutions else QtCore.Qt.Unchecked)
+            if soln.name in self.selectedSolutions:
+                item.setCheckState(0, QtCore.Qt.Checked)
+                newSel.append(soln.name)
+            else:
+                item.setCheckState(0, QtCore.Qt.Unchecked)
             item.solution = soln
             group = soln.group
             if group not in grpItems:
@@ -376,6 +392,7 @@ class SolutionEditorWidget(QtGui.QWidget):
             grpItem = grpItems[group]
             grpItem.addChild(item)
 
+        self.selectedSolutions = newSel
         self.reverseAgainstItem.setAllSolutions(self.solutions)
 
     def addGroup(self, name):
@@ -451,10 +468,27 @@ class SolutionEditorWidget(QtGui.QWidget):
             #item = QtGui.QTreeWidgetItem([reagent] + concs)
             item = ReagentItem(reagent, self.selectedSolutions)
             reagentTree.addChild(item)
+            item.sigChanged.connect(self.recalculate)
             self.reagentItems[reagent] = item
             if reagent in unknown:
                 item.setForeground(0, QtGui.QColor(200, 0, 0))
 
+        # Set measured ion concentration values
+        # (todo)
+        self.solnTreeItems['Ion Concentrations (measured)'].setExpanded(False)
+        
+        # recalculate estimated ion concentrations, osmolartity, and reversals
+        self.recalculate()
+        
+        # update reversal potential special fields
+        self.solutionTypeItem.setSolutions(self.selectedSolutions)
+        self.reverseAgainstItem.setSolutions(self.selectedSolutions)
+
+        # resize columns
+        for i in range(len(self.selectedSolutions)+1):
+            self.ui.solutionTable.resizeColumnToContents(i)
+
+    def recalculate(self):
         results = self.solutions.recalculate(self.selectedSolutions, self.ui.reverseTempSpin.value())
         for i, soln in enumerate(self.selectedSolutions):
             ions, osm, revs = results[soln.name]
@@ -465,22 +499,16 @@ class SolutionEditorWidget(QtGui.QWidget):
                 else:
                     self.ionReversalItems[ion].setText(i+1, '%0.1f'%revs[ion])
                     
-            # Set measured ion concentration values
-            # (todo)
-            self.solnTreeItems['Ion Concentrations (measured)'].setExpanded(False)
             self.solnTreeItems['Osmolarity (estimated)'].setText(i+1, '%0.1f'%osm)
         
-        # resize columns
-        for i in range(len(self.selectedSolutions)):
-            self.ui.solutionTable.resizeColumnToContents(i)
-
-        # update reversal potential special fields
-        self.solutionTypeItem.setSolutions(self.selectedSolutions)
-        self.reverseAgainstItem.setSolutions(self.selectedSolutions)
-
 
 class ReagentItem(pg.TreeWidgetItem):
     def __init__(self, name, solutions):
+        class SigProxy(QtCore.QObject):
+            sigChanged = QtCore.Signal(object)
+        self._sigprox = SigProxy()
+        self.sigChanged = self._sigprox.sigChanged
+
         self.name = name
         self.solutions = solutions
         pg.TreeWidgetItem.__init__(self, [name] + ['%0.1f'%sol.reagents[name] if name in sol.reagents else '' for sol in solutions])
@@ -502,6 +530,7 @@ class ReagentItem(pg.TreeWidgetItem):
         else:
             sol.reagents[self.name] = float(t)
         self.setText(col, editor.text())
+        self.sigChanged.emit(self)
 
 
 class SolutionTypeItem(pg.TreeWidgetItem):
@@ -636,7 +665,7 @@ class GroupItem(pg.TreeWidgetItem):
         font.setWeight(QtGui.QFont.Bold)
         self.setFont(0, font)
         self.setForeground(0, pg.mkBrush(255, 255, 255))
-        self.setBackground(0, pg.mkBrush(150, 150, 150))
+        self.setBackground(0, pg.mkBrush(180, 180, 200))
         #self.setFirstColumnSpanned(True)
         self.setExpanded(True)
         if editable:
@@ -770,8 +799,26 @@ class SolutionEditorWindow(QtGui.QMainWindow):
         self.tabs.addTab(self.constraintEditor, 'Constraints')
         self.tabs.setCurrentWidget(self.solutionEditor)
 
+        self.fileMenu = self.menuBar().addMenu('&File')
+        self.fileMenu.addAction('Open', self.restore)
+        self.fileMenu.addAction('Save', self.save)
+
     def loadReagents(self, data):
         self.reagents.restore(data)
         self.reagentEditor.updateReagentList()
         
+    def save(self):
+        fname = QtGui.QFileDialog.getSaveFileName()
+        r = self.reagents.save()
+        s = self.solutions.save()
+        json.dump({'reagents': r, 'solutions': s}, open(fname, 'wb'), indent=2)
+        
+    def restore(self):
+        fname = QtGui.QFileDialog.getOpenFileName()
+        state = json.load(open(fname, 'rb'))
+        self.reagents.restore(state['reagents'])
+        self.reagentEditor.updateReagentList()
+        self.solutions.restore(state['solutions'])
+        self.solutionEditor.updateSolutionList()
+        self.solutionEditor.updateSolutionTree()
         
