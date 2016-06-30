@@ -33,6 +33,12 @@ class Ui_recipeEditor(object):
         self.splitter.setObjectName(_fromUtf8("splitter"))
         self.treeWidget_2 = QtGui.QTreeWidget(self.splitter)
         self.treeWidget_2.setObjectName(_fromUtf8("treeWidget_2"))
+        item_0 = QtGui.QTreeWidgetItem(self.treeWidget_2)
+        item_0 = QtGui.QTreeWidgetItem(self.treeWidget_2)
+        item_0 = QtGui.QTreeWidgetItem(self.treeWidget_2)
+        item_0 = QtGui.QTreeWidgetItem(self.treeWidget_2)
+        item_0 = QtGui.QTreeWidgetItem(self.treeWidget_2)
+        item_0 = QtGui.QTreeWidgetItem(self.treeWidget_2)
         self.textBrowser = QtGui.QTextBrowser(self.splitter)
         self.textBrowser.setObjectName(_fromUtf8("textBrowser"))
         self.gridLayout.addWidget(self.splitter, 0, 0, 1, 1)
@@ -42,8 +48,16 @@ class Ui_recipeEditor(object):
 
     def retranslateUi(self, recipeEditor):
         recipeEditor.setWindowTitle(_translate("recipeEditor", "Form", None))
-        self.treeWidget_2.headerItem().setText(0, _translate("recipeEditor", "Solution", None))
-        self.treeWidget_2.headerItem().setText(1, _translate("recipeEditor", "Volume (mL)", None))
+        self.treeWidget_2.headerItem().setText(0, _translate("recipeEditor", "New Column", None))
+        __sortingEnabled = self.treeWidget_2.isSortingEnabled()
+        self.treeWidget_2.setSortingEnabled(False)
+        self.treeWidget_2.topLevelItem(0).setText(0, _translate("recipeEditor", "Solution", None))
+        self.treeWidget_2.topLevelItem(1).setText(0, _translate("recipeEditor", "Name", None))
+        self.treeWidget_2.topLevelItem(2).setText(0, _translate("recipeEditor", "Volume", None))
+        self.treeWidget_2.topLevelItem(3).setText(0, _translate("recipeEditor", "Show MW", None))
+        self.treeWidget_2.topLevelItem(4).setText(0, _translate("recipeEditor", "Show concentration", None))
+        self.treeWidget_2.topLevelItem(5).setText(0, _translate("recipeEditor", "Stocks (mM)", None))
+        self.treeWidget_2.setSortingEnabled(__sortingEnabled)
         self.textBrowser.setHtml(_translate("recipeEditor", "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0//EN\" \"http://www.w3.org/TR/REC-html40/strict.dtd\">\n"
 "<html><head><meta name=\"qrichtext\" content=\"1\" /><style type=\"text/css\">\n"
 "p, li { white-space: pre-wrap; }\n"

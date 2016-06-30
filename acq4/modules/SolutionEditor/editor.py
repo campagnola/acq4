@@ -252,6 +252,21 @@ def _loadRec(arr, rec):
             _loadRec(arr[field], rec[field])
         
 
+class Recipe(object):
+    def __init__(self, name=None, solution=None, stocks=None, volume=0, notes=None):
+        self.solution = solution
+        # concentrations of stock solutions per reagent
+        self.stocks = {} if stocks is None else stocks  
+        self.volume = volume
+        self.notes = notes
+
+
+class RecipeSet(object):
+    def __init__(self, name, recipes=None, order=None):
+        self.name = name
+        self.recipes = [] if recipes is None else recipes
+        self.reagentOrder = [] order is None else order
+
 
 
 class ReagentEditorWidget(QtGui.QWidget):
@@ -780,6 +795,7 @@ class SolutionEditorWindow(QtGui.QMainWindow):
     def __init__(self):
         self.reagents = Reagents()
         self.solutions = Solutions(self.reagents)
+        self.currentFile = None
         
         QtGui.QMainWindow.__init__(self)
         self.resize(1200, 800)
@@ -802,19 +818,33 @@ class SolutionEditorWindow(QtGui.QMainWindow):
         self.fileMenu = self.menuBar().addMenu('&File')
         self.fileMenu.addAction('Open', self.restore)
         self.fileMenu.addAction('Save', self.save)
+        self.fileMenu.addAction('Save As', self.saveAs)
 
     def loadReagents(self, data):
         self.reagents.restore(data)
         self.reagentEditor.updateReagentList()
         
     def save(self):
+        if self.currentFile is None:
+            self.saveAs()
+        else:
+            r = self.reagents.save()
+            s = self.solutions.save()
+            json.dump({'reagents': r, 'solutions': s}, open(self.currentFile, 'wb'), indent=2)
+        
+    def saveAs(self):
         fname = QtGui.QFileDialog.getSaveFileName()
-        r = self.reagents.save()
-        s = self.solutions.save()
-        json.dump({'reagents': r, 'solutions': s}, open(fname, 'wb'), indent=2)
+        if fname is not None:
+            self.currentFile = fname
+            self.setWindowTitle('Solution Editor: ' + fname)
+            self.save()
         
     def restore(self):
         fname = QtGui.QFileDialog.getOpenFileName()
+        if fname is None:
+            return
+        self.currentFile = fname
+        self.setWindowTitle('Solution Editor: ' + fname)
         state = json.load(open(fname, 'rb'))
         self.reagents.restore(state['reagents'])
         self.reagentEditor.updateReagentList()
