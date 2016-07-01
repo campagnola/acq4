@@ -112,8 +112,12 @@ class Reagents(object):
         return self.data[inds]
 
 
-class Solutions(object):
+class Solutions(QtCore.QObject):
+    
+    solutionListChanged = QtCore.Signal(object)
+    
     def __init__(self, reagents):
+        QtCore.QObject.__init__(self)
         self.reagents = reagents
         self.data = []
         self.groups = []
@@ -123,6 +127,7 @@ class Solutions(object):
             if s.name == soln.name:
                 raise NameError("Solution with this name already exists.")
         self.data.append(soln)
+        self.solutionListChanged.emit(self)
     
     def __getitem__(self, name):
         for sol in self.data:
@@ -265,7 +270,12 @@ class RecipeSet(object):
     def __init__(self, name, recipes=None, order=None):
         self.name = name
         self.recipes = [] if recipes is None else recipes
-        self.reagentOrder = [] order is None else order
+        self.reagentOrder = [] if order is None else order
+
+
+class RecipeBook(object):
+    def __init__(self):
+        self.recipeSets = []
 
 
 
@@ -778,10 +788,102 @@ class AdderItem(pg.TreeWidgetItem):
         
 
 class RecipeEditorWidget(QtGui.QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, recipes, solutions, parent=None):
+        self.recipes = recipes
+        self.solutions = solutions
         QtGui.QWidget.__init__(self, parent)
         self.ui = Ui_recipeEditor()
         self.ui.setupUi(self)
+        
+        self.ui.recipeTree.clear()
+        self.ui.recipeTree.setSelectionBehavior(QtGui.QAbstractItemView.SelectItems)
+        self.recipeTreeDelegate = ItemDelegate(self.ui.recipeTree)  # allow items to specify their own editors
+        self.ui.recipeTree.setHeaderLabels([''])
+        self.ui.recipeTree.setColumnCount(2)
+        self.treeItems = {}
+        item = SolutionItem()
+        self.treeItems['Solution'] = item
+        self.ui.recipeTree.addTopLevelItem(item)
+        names = ['Name', 'Volume', 'Show MW', 'Show Concentration', 'Reagent stocks']
+        for n in names:
+            item = pg.TreeWidgetItem([n])
+            self.treeItems[n] = item
+            self.ui.recipeTree.addTopLevelItem(item)
+            
+        self.reagentItems = []
+        self.updateRecipeTree()
+        
+        self.solutions.solutionListChanged.connect(self.solutionsChanged)
+        self.ui.recipeTree.itemSelectionChanged.connect(self.selectionChanged)
+        self.ui.recipeTree.itemClicked.connect(self.itemClicked)
+        self.ui.recipeTree.resizeColumnToContents(0)
+
+    def selectionChanged(self):
+        selection = self.ui.recipeTree.selectionModel().selection().indexes()
+        if len(selection) != 1:
+            return
+        item, col = self.ui.recipeTree.itemFromIndex(selection[0])
+        if item.flags() & QtCore.Qt.ItemIsEditable == QtCore.Qt.ItemIsEditable:
+            self.ui.recipeTree.editItem(item, col)
+
+    def itemClicked(self, item, col):
+        if hasattr(item, 'itemClicked'):
+            item.itemClicked(col)
+        
+    def solutionsChanged(self):
+        self.treeItems['Solution'].setAllSolutions(self.solutions)
+        
+    def updateRecipeTree(self):
+        pass
+        #for i in range(1, self.ui.recipeTree.columnCount()):
+            #self.treeItems['Solution'].setSolutions
+            
+            
+        
+class SolutionItem(pg.TreeWidgetItem):
+    def __init__(self):
+        class SigProxy(QtCore.QObject):
+            sigChanged = QtCore.Signal(object)
+        self._sigprox = SigProxy()
+        self.sigChanged = self._sigprox.sigChanged
+
+        self.solutions = []
+        pg.TreeWidgetItem.__init__(self, ['Solution', 'add..'])
+        self.menu = QtGui.QMenu()
+        
+    def setSolutions(self, solutions):
+        self.solutions = solutions
+        for i,sol in enumerate(solutions):
+            self.setText(i+1, sol.name)
+            
+    def setAllSolutions(self, solutions):
+        self.menu.clear()
+        grp = None
+        for sol in solutions.data:
+            if sol.group != grp:
+                grp = sol.group
+                label = QtGui.QLabel(grp)
+                font = label.font()
+                font.setWeight(font.Bold)
+                label.setFont(font)
+                act = QtGui.QWidgetAction(self.menu)
+                act.setDefaultWidget(label)
+                self.menu.addAction(act)
+            self.menu.addAction("  " + sol.name, self.selectionChanged)
+            
+    def selectionChanged(self):
+        action = self.treeWidget().sender()
+        text = action.text().strip()
+        self.setText(self._activeColumn, text)
+        self.sigChanged.emit(self)
+            
+    def itemClicked(self, col):
+        tw = self.treeWidget()
+        x = tw.header().sectionPosition(col)
+        y = tw.header().height() + tw.visualItemRect(self).bottom()
+        self.menu.popup(tw.mapToGlobal(QtCore.QPoint(x, y)))
+        self._activeColumn = col
+        return None
         
 
 class ConstraintEditorWidget(QtGui.QWidget):
@@ -795,6 +897,7 @@ class SolutionEditorWindow(QtGui.QMainWindow):
     def __init__(self):
         self.reagents = Reagents()
         self.solutions = Solutions(self.reagents)
+        self.recipes = RecipeBook()
         self.currentFile = None
         
         QtGui.QMainWindow.__init__(self)
@@ -808,7 +911,7 @@ class SolutionEditorWindow(QtGui.QMainWindow):
         self.solutionEditor = SolutionEditorWidget(self.solutions)
         self.tabs.addTab(self.solutionEditor, 'Solutions')
         
-        self.recipeEditor = RecipeEditorWidget()
+        self.recipeEditor = RecipeEditorWidget(self.recipes, self.solutions)
         self.tabs.addTab(self.recipeEditor, 'Recipes')
         
         self.constraintEditor = ConstraintEditorWidget()
