@@ -806,7 +806,7 @@ class RecipeEditorWidget(QtGui.QWidget):
         self.ui.recipeTree.addTopLevelItem(item)
         names = ['Name', 'Volume', 'Show MW', 'Show Concentration', 'Reagent stocks']
         for n in names:
-            item = pg.TreeWidgetItem([n])
+            item = EditableItem(n)
             self.treeItems[n] = item
             self.ui.recipeTree.addTopLevelItem(item)
             
@@ -817,6 +817,7 @@ class RecipeEditorWidget(QtGui.QWidget):
         self.ui.recipeTree.itemSelectionChanged.connect(self.selectionChanged)
         self.ui.recipeTree.itemClicked.connect(self.itemClicked)
         self.ui.recipeTree.resizeColumnToContents(0)
+        self.treeItems['Solution'].sigChanged.connect(self.solutionItemChanged)
 
     def selectionChanged(self):
         selection = self.ui.recipeTree.selectionModel().selection().indexes()
@@ -830,7 +831,16 @@ class RecipeEditorWidget(QtGui.QWidget):
         if hasattr(item, 'itemClicked'):
             item.itemClicked(col)
         
+    def solutionItemChanged(self, item):
+        # selected solutions have changed
+        solns = [s for s in item.solutions if s is not None]
+        self.ui.recipeTree.setColumnCount(len(solns) + 2)
+        item.setSolutions(solns)
+        for i in range(len(solns)+1):
+            self.ui.recipeTree.resizeColumnToContents(i)
+        
     def solutionsChanged(self):
+        # list of all available solutions has changed
         self.treeItems['Solution'].setAllSolutions(self.solutions)
         
     def updateRecipeTree(self):
@@ -852,12 +862,16 @@ class SolutionItem(pg.TreeWidgetItem):
         self.menu = QtGui.QMenu()
         
     def setSolutions(self, solutions):
+        # list of solutions to show in each column
         self.solutions = solutions
         for i,sol in enumerate(solutions):
-            self.setText(i+1, sol.name)
+            self.setText(i+1, sol)
+        self.setText(len(solutions)+1, 'add..')
             
     def setAllSolutions(self, solutions):
+        # list of solutions to show in dropdown menu
         self.menu.clear()
+        self.menu.addAction('[none]', self.selectionChanged)
         grp = None
         for sol in solutions.data:
             if sol.group != grp:
@@ -874,17 +888,47 @@ class SolutionItem(pg.TreeWidgetItem):
     def selectionChanged(self):
         action = self.treeWidget().sender()
         text = action.text().strip()
-        self.setText(self._activeColumn, text)
+        while self._activeColumn > len(self.solutions):
+            self.solutions.append(None)
+        self.solutions[self._activeColumn-1] = None if text == '[none]' else text
         self.sigChanged.emit(self)
-            
+
     def itemClicked(self, col):
+        # popup menu when clicked
         tw = self.treeWidget()
         x = tw.header().sectionPosition(col)
         y = tw.header().height() + tw.visualItemRect(self).bottom()
         self.menu.popup(tw.mapToGlobal(QtCore.QPoint(x, y)))
         self._activeColumn = col
         return None
-        
+
+
+class EditableItem(pg.TreeWidgetItem):
+    def __init__(self, name):
+        class SigProxy(QtCore.QObject):
+            sigChanged = QtCore.Signal(object)
+        self._sigprox = SigProxy()
+        self.sigChanged = self._sigprox.sigChanged
+
+        self.name = name
+        pg.TreeWidgetItem.__init__(self, [name])
+        self.setFlags(self.flags() | QtCore.Qt.ItemIsEditable)
+
+    def createEditor(self, parent, option, col):
+        if col == 0:
+            return None
+        return QtGui.QLineEdit(parent)
+    
+    def setEditorData(self, editor, col):
+        editor.setText(self.text(col))
+    
+    def setModelData(self, editor, model, col):
+        self.setText(col, editor.text())
+        self.sigChanged.emit(self)
+
+
+
+
 
 class ConstraintEditorWidget(QtGui.QWidget):
     def __init__(self, parent=None):
