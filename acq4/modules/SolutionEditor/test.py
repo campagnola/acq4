@@ -2,7 +2,8 @@ import os, sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 
 from acq4.pyqtgraph import QtGui, QtCore
-from acq4.modules.SolutionEditor.editor import SolutionEditorWindow, Solution
+from acq4.modules.SolutionEditor.editor import SolutionEditorWindow
+from acq4.modules.SolutionEditor.core import Solution
 
 #app = QtGui.QApplication([])
 
