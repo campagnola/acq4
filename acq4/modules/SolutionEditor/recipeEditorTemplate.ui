@@ -20,6 +20,9 @@
       <enum>Qt::Vertical</enum>
      </property>
      <widget class="TreeWidget" name="recipeTree">
+      <property name="headerHidden">
+       <bool>true</bool>
+      </property>
       <column>
        <property name="text">
         <string>New Column</string>

@@ -13,6 +13,7 @@ class TreeWidget(QtGui.QTreeWidget):
     sigItemMoved = QtCore.Signal(object, object, object) # (item, parent, index)
     sigItemCheckStateChanged = QtCore.Signal(object, object)
     sigItemTextChanged = QtCore.Signal(object, object)
+    sigColumnCountChanged = QtCore.Signal(object, object)  # self, count
     
     def __init__(self, parent=None):
         QtGui.QTreeWidget.__init__(self, parent)
@@ -220,6 +221,10 @@ class TreeWidget(QtGui.QTreeWidget):
         for row in rows[1:]:
             item = item.child(row)
         return item, col
+
+    def setColumnCount(self, c):
+        QtGui.QTreeWidget.setColumnCount(self, c)
+        self.sigColumnCountChanged.emit(self, c)
 
                 
 class TreeWidgetItem(QtGui.QTreeWidgetItem):

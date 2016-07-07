@@ -32,6 +32,7 @@ class Ui_recipeEditor(object):
         self.splitter.setOrientation(QtCore.Qt.Vertical)
         self.splitter.setObjectName(_fromUtf8("splitter"))
         self.recipeTree = TreeWidget(self.splitter)
+        self.recipeTree.setHeaderHidden(True)
         self.recipeTree.setObjectName(_fromUtf8("recipeTree"))
         item_0 = QtGui.QTreeWidgetItem(self.recipeTree)
         item_0 = QtGui.QTreeWidgetItem(self.recipeTree)

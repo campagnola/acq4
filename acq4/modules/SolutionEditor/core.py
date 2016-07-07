@@ -253,7 +253,7 @@ def _loadRec(arr, rec):
         
 
 class Recipe(object):
-    def __init__(self, name=None, solution=None, stocks=None, volume=0, notes=None):
+    def __init__(self, solution=None, stocks=None, volume=0, notes=None):
         self.solution = solution
         # concentrations of stock solutions per reagent
         self.stocks = {} if stocks is None else stocks  

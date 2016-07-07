@@ -1,5 +1,6 @@
 import acq4.pyqtgraph as pg
 from acq4.pyqtgraph.Qt import QtGui, QtCore
+from .core import RecipeSet, Recipe
 from .treeWidget import ItemDelegate
 from .recipeEditorTemplate import Ui_recipeEditor
 
@@ -8,6 +9,7 @@ class RecipeEditorWidget(QtGui.QWidget):
     def __init__(self, recipes, solutions, parent=None):
         self.recipes = recipes
         self.solutions = solutions
+        self.recipeSet = RecipeSet('default')
         QtGui.QWidget.__init__(self, parent)
         self.ui = Ui_recipeEditor()
         self.ui.setupUi(self)
@@ -23,7 +25,10 @@ class RecipeEditorWidget(QtGui.QWidget):
         self.ui.recipeTree.addTopLevelItem(item)
         names = ['Name', 'Volume', 'Show MW', 'Show Concentration', 'Reagent stocks']
         for n in names:
-            item = EditableItem(n)
+            if n.startswith('Show'):
+                item = CheckableItem(n)
+            else:
+                item = EditableItem(n)
             self.treeItems[n] = item
             self.ui.recipeTree.addTopLevelItem(item)
             
@@ -49,22 +54,35 @@ class RecipeEditorWidget(QtGui.QWidget):
             item.itemClicked(col)
         
     def solutionItemChanged(self, item):
-        # selected solutions have changed
-        solns = [s for s in item.solutions if s is not None]
-        self.ui.recipeTree.setColumnCount(len(solns) + 2)
-        item.setSolutions(solns)
-        for i in range(len(solns)+1):
-            self.ui.recipeTree.resizeColumnToContents(i)
+        # user selected different solutions
+        
+        # Update recipe set by adding / removing recipes as needed
+        recipes = []
+        for i, s in enumerate(self.treeItems['Solution'].solutions):
+            if s is not None:
+                if i < len(self.recipeSet.recipes):
+                    recipes.append(self.recipeSet.recipes[i])
+                else:
+                    recipes.append(Recipe(solution=s))
+        self.recipeSet.recipes = recipes
+
+        self.updateRecipeTree()
         
     def solutionsChanged(self):
         # list of all available solutions has changed
         self.treeItems['Solution'].setAllSolutions(self.solutions)
         
     def updateRecipeTree(self):
-        pass
-        #for i in range(1, self.ui.recipeTree.columnCount()):
-            #self.treeItems['Solution'].setSolutions
-            
+        # Update display
+        solns = [r.solution for r in self.recipeSet.recipes]
+        self.ui.recipeTree.setColumnCount(len(solns) + 2)
+        self.treeItems['Solution'].setSolutions(solns)
+        for i in range(len(solns)+1):
+            self.ui.recipeTree.resizeColumnToContents(i)
+        for i in range(1, self.ui.recipeTree.columnCount()-1):
+            self.treeItems['Show MW'].setChecked(i, False)
+            self.treeItems['Show Concentration'].setChecked(i, False)
+        
             
         
 class SolutionItem(pg.TreeWidgetItem):
@@ -143,3 +161,20 @@ class EditableItem(pg.TreeWidgetItem):
         self.setText(col, editor.text())
         self.sigChanged.emit(self)
 
+
+class CheckableItem(pg.TreeWidgetItem):
+    def __init__(self, name):
+        pg.TreeWidgetItem.__init__(self, [name])
+        self.setFlags(self.flags() | QtCore.Qt.ItemIsUserCheckable)
+
+    #def treeWidgetChanged(self):
+        #if self._tree is not None:
+            #self.tree.sigColumnCountChanged.disconnect(self.columnCountChanged)
+        #pg.TreeWidgetItem.treeWidgetChanged(self)
+        #if self.treeWidget() is not None:
+            #self.treeWidget().sigColumnCountChanged.connect(self.columnCountChanged)
+        
+    #def columnCountChanged(self):
+        ## do we need this at all? 
+        #pass
+        
