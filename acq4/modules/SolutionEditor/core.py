@@ -6,6 +6,7 @@ from acq4.pyqtgraph.Qt import QtGui, QtCore
 
 IONS = OrderedDict([('Na', 1), ('K', 1), ('Cl', -1), ('Ca', 2), ('Mg', 2), ('SO4', -2), ('PO4', -3), ('Cs', 1)])
 
+
 DEFAULT_REAGENTS = [
     ('Monovalent Ions', 'sodium chloride', 'NaCl', 58.44, 1.84, 1, 0, 1),
     ('Monovalent Ions', 'potassium chloride', 'KCl', 74.56, 1.84, 0, 1, 1),
@@ -98,13 +99,23 @@ class Reagents(object):
         return np.unique(self.data['group'])
 
     def __getitem__(self, names):
+        if isinstance(names, str):
+            names = [names]
+            returnone = True
+        else:
+            returnone = False
+        
         inds = []
         for n in names:
             r = np.argwhere(self.data['name'] == n)[:,0]
             if r.shape[0] == 0:
                 continue
             inds.append(r[0])
-        return self.data[inds]
+
+        if returnone:
+            return self.data[inds[0]]
+        else:
+            return self.data[inds]
 
 
 class Solutions(QtCore.QObject):
@@ -253,12 +264,15 @@ def _loadRec(arr, rec):
         
 
 class Recipe(object):
-    def __init__(self, solution=None, stocks=None, volume=0, notes=None):
+    def __init__(self, solution=None, stocks=None, volumes=None, notes=None):
         self.solution = solution
+        self.volumes = [] if volumes is None else volumes
         # concentrations of stock solutions per reagent
         self.stocks = {} if stocks is None else stocks  
-        self.volume = volume
         self.notes = notes
+
+    def save(self):
+        return {'solution': self.solution.name, 'volumes': self.volumes, 'stocks': self.stocks, 'notes': self.notes}
 
 
 class RecipeSet(object):
@@ -266,10 +280,33 @@ class RecipeSet(object):
         self.name = name
         self.recipes = [] if recipes is None else recipes
         self.reagentOrder = [] if order is None else order
+        self.showMW = False
+        self.showConcentration = False
+
+    def save(self):
+        recipes = [r.save() for r in self.recipes]
+        return {'name': self.name, 'order': self.reagentOrder, 'showMW': self.showMW, 
+                'showConcentration': self.showConcentration, 'recipes': recipes} 
 
 
 class RecipeBook(object):
     def __init__(self):
         self.recipeSets = []
 
+    def save(self):
+        return [r.save() for r in self.recipeSets]
 
+
+class SolutionDatabase(object):
+    def __init__(self):
+        self.reagents = Reagents()
+        self.solutions = Solutions(self.reagents)
+        self.recipes = RecipeBook()
+        
+    def save(self):
+        return {
+            'reagents': self.reagents.save(),
+            'solutions': self.solutions.save(),
+            'recipes': self.recipes.save(),
+        }
+        

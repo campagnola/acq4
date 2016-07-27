@@ -6,8 +6,9 @@ from .solutionEditorTemplate import Ui_solutionEditor
 
 
 class SolutionEditorWidget(QtGui.QWidget):
-    def __init__(self, solutions, parent=None):
-        self.solutions = solutions
+    def __init__(self, db, parent=None):
+        self.db = db
+        self.solutions = db.solutions
         self.selectedSolutions = []
         self.showAllReagents = False
         

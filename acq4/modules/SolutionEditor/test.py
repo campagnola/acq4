@@ -11,7 +11,7 @@ w = SolutionEditorWindow()
 w.show()
 
 import pyqtgraph as pg
-pg.dbg()
+#pg.dbg()
 
 
 #re = w.reagents
@@ -25,7 +25,7 @@ pg.dbg()
 #w.reagentEditor.updateReagentList()
 
 
-solns = w.solutions
+solns = w.db.solutions
 sol = Solution(name='Standard ACSF', group='ACSF', against='Standard Internal')
 sol['sodium chloride'] = 123
 sol['potassium chloride'] = 3
@@ -59,5 +59,5 @@ solns.add(sol)
 
 
 w.solutionEditor.updateSolutionList()
-
+w.tabs.setCurrentIndex(2)
 

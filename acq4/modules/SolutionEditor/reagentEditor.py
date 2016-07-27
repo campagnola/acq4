@@ -5,8 +5,9 @@ from .reagentEditorTemplate import Ui_reagentEditor
 
 
 class ReagentEditorWidget(QtGui.QWidget):
-    def __init__(self, reagents, parent=None):
-        self.reagents = reagents
+    def __init__(self, db, parent=None):
+        self.db = db
+        self.reagents = db.reagents
         QtGui.QWidget.__init__(self, parent)
         self.ui = Ui_reagentEditor()
         self.ui.setupUi(self)

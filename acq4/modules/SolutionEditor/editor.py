@@ -1,5 +1,5 @@
 from acq4.pyqtgraph.Qt import QtGui, QtCore
-from .core import Reagents, Solutions, RecipeBook
+from .core import SolutionDatabase
 from .reagentEditor import ReagentEditorWidget
 from .solutionEditor import SolutionEditorWidget
 from .recipeEditor import RecipeEditorWidget
@@ -8,9 +8,7 @@ from .constraintEditor import ConstraintEditorWidget
 
 class SolutionEditorWindow(QtGui.QMainWindow):
     def __init__(self):
-        self.reagents = Reagents()
-        self.solutions = Solutions(self.reagents)
-        self.recipes = RecipeBook()
+        self.db = SolutionDatabase()
         self.currentFile = None
         
         QtGui.QMainWindow.__init__(self)
@@ -18,13 +16,13 @@ class SolutionEditorWindow(QtGui.QMainWindow):
         self.tabs = QtGui.QTabWidget()
         self.setCentralWidget(self.tabs)
         
-        self.reagentEditor = ReagentEditorWidget(self.reagents)
+        self.reagentEditor = ReagentEditorWidget(self.db)
         self.tabs.addTab(self.reagentEditor, 'Reagents')
         
-        self.solutionEditor = SolutionEditorWidget(self.solutions)
+        self.solutionEditor = SolutionEditorWidget(self.db)
         self.tabs.addTab(self.solutionEditor, 'Solutions')
         
-        self.recipeEditor = RecipeEditorWidget(self.recipes, self.solutions)
+        self.recipeEditor = RecipeEditorWidget(self.db)
         self.tabs.addTab(self.recipeEditor, 'Recipes')
         
         self.constraintEditor = ConstraintEditorWidget()
@@ -44,9 +42,7 @@ class SolutionEditorWindow(QtGui.QMainWindow):
         if self.currentFile is None:
             self.saveAs()
         else:
-            r = self.reagents.save()
-            s = self.solutions.save()
-            json.dump({'reagents': r, 'solutions': s}, open(self.currentFile, 'wb'), indent=2)
+            json.dump(self.db.save(), open(self.currentFile, 'wb'), indent=2)
         
     def saveAs(self):
         fname = QtGui.QFileDialog.getSaveFileName()
