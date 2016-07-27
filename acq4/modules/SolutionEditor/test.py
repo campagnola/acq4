@@ -1,31 +1,19 @@
 import os, sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 
+
 from acq4.pyqtgraph import QtGui, QtCore
 from acq4.modules.SolutionEditor.editor import SolutionEditorWindow
-from acq4.modules.SolutionEditor.core import Solution
+from acq4.modules.SolutionEditor.core import Solution, Recipe, RecipeSet, SolutionDatabase
 
+#import pyqtgraph as pg
 #app = QtGui.QApplication([])
-
-w = SolutionEditorWindow()
-w.show()
-
-import pyqtgraph as pg
 #pg.dbg()
 
 
-#re = w.reagents
-#re.add(group='Monovalent Ions', name='Sodium Chloride', formula='NaCl', molweight=58.44, osmolaritry=1.84, Na=1, Cl=1)
-#re.add(group='Monovalent Ions', name='Potassium Chloride', formula='KCl', K=1, Cl=1)
-#re.add(group='Monovalent Ions', name='Sodium Phosphate', formula='NaH2PO4', Na=1, PO4=1)
-#re.add(group='Buffers', name='Sodium Bicarbonate', formula='NaHCO3', Na=1)
-#re.add(group='Buffers', name='HEPES')
-#re.add(group='Divalent Ions', name='MgSO4', Mg=1, SO4=1)
-#re.add(group='Divalent Ions', name='CaCl2', Ca=1, Cl=2)
-#w.reagentEditor.updateReagentList()
+db = SolutionDatabase()
 
-
-solns = w.db.solutions
+solns = db.solutions
 sol = Solution(name='Standard ACSF', group='ACSF', against='Standard Internal')
 sol['sodium chloride'] = 123
 sol['potassium chloride'] = 3
@@ -56,6 +44,18 @@ sol['phosphocreatine bg'] = 10
 sol['magnesium ATP'] = 4
 sol['GTP sodium hydrate'] = 0.3
 solns.add(sol)
+
+
+r1 = Recipe(solution=solns['Standard ACSF'], volumes=[1000, 500])
+r2 = Recipe(solution=solns['Diss. ACSF'], volumes=[1000, 500])
+rs = RecipeSet(name='Standard recipes', recipes=[r1, r2])
+db.recipes.recipeSets.append(rs)
+rs = RecipeSet(name='Recording ACSF', recipes=[r1])
+db.recipes.recipeSets.append(rs)
+
+
+w = SolutionEditorWindow(db=db)
+w.show()
 
 
 w.solutionEditor.updateSolutionList()

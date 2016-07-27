@@ -8,9 +8,11 @@ from .recipeEditorTemplate import Ui_recipeEditor
 class RecipeEditorWidget(QtGui.QWidget):
     def __init__(self, db, parent=None):
         self.db = db
-        self.recipeSet = RecipeSet('default')
+        self.recipeSet = None
         self.reagentItems = []
         self.solutionGroups = []
+        
+        self.addSolutionItem = None
         
         QtGui.QWidget.__init__(self, parent)
         self.ui = Ui_recipeEditor()
@@ -20,8 +22,11 @@ class RecipeEditorWidget(QtGui.QWidget):
         table = self.ui.recipeTable
         table.horizontalHeader().hide()
         
+        self.ui.recipeSetList.currentRowChanged.connect(self.currentRecipeSetChanged)
+        
         self.styleDelegate = StyleDelegate(table)
 
+        self.updateRecipeSetList()
         self.updateRecipeTable()
         
         self.db.solutions.solutionListChanged.connect(self.solutionsChanged)
@@ -40,16 +45,31 @@ class RecipeEditorWidget(QtGui.QWidget):
         
     def solutionsChanged(self):
         # list of all available solutions has changed
-        #self.treeItems['Solution'].setAllSolutions(self.solutions)
         for s in self.solutionGroups:
             s.solutionItem.setAllSolutions(self.db.solutions)
-        self.addSolutionItem.setAllSolutions(self.db.solutions)
+        if self.addSolutionItem is not None:
+            self.addSolutionItem.setAllSolutions(self.db.solutions)
+        
+    def currentRecipeSetChanged(self, row):
+        rs = self.db.recipes.recipeSets[row]
+        if rs is not self.recipeSet:
+            self.recipeSet = rs
+            self.updateSolutionGroups()
+        
+    def updateSolutionGroups(self):
+        self.solutionGroups = []
+        for recipe in self.recipeSet.recipes:
+            grp = SolutionItemGroup(self.ui.recipeTable, recipe, self.db)
+            self.solutionGroups.append(grp)
+        self.updateRecipeTable()
         
     def updateRecipeTable(self):
         # reset table
         table = self.ui.recipeTable
         table.clear()
         table.clearSpans()
+        if self.recipeSet is None:
+            return
         table.setColumnCount(sum([s.columns() for s in self.solutionGroups]) + 1)
         
         # generate new reagent list
@@ -82,6 +102,14 @@ class RecipeEditorWidget(QtGui.QWidget):
         self.addSolutionItem.sigChanged.connect(self.newSolutionSelected)
         #for i in range(len(solns)+1):
             #self.ui.recipeTree.resizeColumnToContents(i)
+            
+    def updateRecipeSetList(self):
+        rsl = self.ui.recipeSetList
+        rsl.clear()
+        for i, rs in enumerate(self.db.recipes.recipeSets):
+            rsl.addItem(rs.name)
+            if rs is self.recipeSet:
+                rsl.setCurrentItem(i)
             
     def resizeColumns(self):
         i = 0

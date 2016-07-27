@@ -7,8 +7,11 @@ from .constraintEditor import ConstraintEditorWidget
 
 
 class SolutionEditorWindow(QtGui.QMainWindow):
-    def __init__(self):
-        self.db = SolutionDatabase()
+    def __init__(self, db=None):
+        if db is None:
+            db = SolutionDatabase()
+        self.db = db
+        
         self.currentFile = None
         
         QtGui.QMainWindow.__init__(self)
