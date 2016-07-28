@@ -21,6 +21,7 @@ class RecipeEditorWidget(QtGui.QWidget):
         self.ui.splitter.setStretchFactor(1, 5)
         table = self.ui.recipeTable
         table.horizontalHeader().hide()
+        table.verticalHeader().hide()
         
         self.ui.recipeSetList.currentRowChanged.connect(self.currentRecipeSetChanged)
         
@@ -70,7 +71,7 @@ class RecipeEditorWidget(QtGui.QWidget):
         table.clearSpans()
         if self.recipeSet is None:
             return
-        table.setColumnCount(sum([s.columns() for s in self.solutionGroups]) + 1)
+        table.setColumnCount(sum([s.columns() for s in self.solutionGroups]) + 2)
         
         # generate new reagent list
         solns = [r.solution for r in self.recipeSet.recipes]
@@ -78,16 +79,25 @@ class RecipeEditorWidget(QtGui.QWidget):
         for soln in solns:
             reagents |= set(soln.reagents.keys())
 
-        # sort here...
-        reagents = list(reagents)
+        # sort reagents
+        reagentOrder = []
+        for rec in self.db.reagents.data:
+            if rec['name'] in reagents:
+                reagentOrder.append(rec['name'])
+        
         for sg in self.solutionGroups:
-            sg.reagentOrder = reagents
+            sg.reagentOrder = reagentOrder
         
-        table.setRowCount(2 + len(reagents))
-        #self.treeItems['Solution'].setSolutions(solns)
-        table.setVerticalHeaderLabels(['', 'Volume'] + reagents)
-        
-        col = 0
+        table.setRowCount(2 + len(reagentOrder))
+        for row, label in enumerate(['', 'Volumes (ml)']):
+            item = TableWidgetItem(label)
+            table.setItem(row, 0, item)
+        for row, reagent in enumerate(reagentOrder):
+            item = ReagentItem(reagent, self.recipeSet.stocks.get(reagent, None))
+            table.setItem(row+2, 0, item)
+            item.sigStockConcentrationChanged.connect(self.stockConcentrationChanged)
+            
+        col = 1
         for grp in self.solutionGroups:
             grp.setupItems(col)
             col += grp.columns()
@@ -97,11 +107,9 @@ class RecipeEditorWidget(QtGui.QWidget):
 
         for col in range(table.columnCount()):
             table.setItemDelegateForColumn(col, self.styleDelegate)
-        self.resizeColumns()
         self.solutionsChanged()
         self.addSolutionItem.sigChanged.connect(self.newSolutionSelected)
-        #for i in range(len(solns)+1):
-            #self.ui.recipeTree.resizeColumnToContents(i)
+        self.resizeColumns()
             
     def updateRecipeSetList(self):
         rsl = self.ui.recipeSetList
@@ -112,9 +120,10 @@ class RecipeEditorWidget(QtGui.QWidget):
                 rsl.setCurrentItem(i)
             
     def resizeColumns(self):
-        i = 0
         table = self.ui.recipeTable
         hh = table.horizontalHeader()
+        table.resizeColumnToContents(0)
+        i = 1
         for sg in self.solutionGroups:
             for j in range(sg.columns()-1):
                 table.resizeColumnToContents(i)
@@ -131,6 +140,14 @@ class RecipeEditorWidget(QtGui.QWidget):
         self.solutionGroups.append(grp)
         grp.sigColumnCountChanged.connect(self.updateRecipeTable)
         self.updateRecipeTable()
+        
+    def stockConcentrationChanged(self, item, conc):
+        if conc is None:
+            self.recipeSet.stocks.pop(item.reagent, None)
+        else:
+            self.recipeSet.stocks[item.reagent] = conc
+        for sg in self.solutionGroups:
+            sg.updateMasses()
             
     def renderRecipeSet(self):
         reagents = self.recipeSet.reagentOrder
@@ -320,8 +337,8 @@ class AdderItem(TableWidgetItem):
     def __init__(self):
         class SigProxy(QtCore.QObject):
             sigClicked = QtCore.Signal(object)
-        self._sigprox = SigProxy()
-        self.sigClicked = self._sigprox.sigClicked
+        self.__sigprox = SigProxy()
+        self.sigClicked = self.__sigprox.sigClicked
 
         TableWidgetItem.__init__(self, '+')
         self.setTextAlignment(QtCore.Qt.AlignCenter)
@@ -334,10 +351,68 @@ class EditableItem(TableWidgetItem):
     def __init__(self, text):
         class SigProxy(QtCore.QObject):
             sigChanged = QtCore.Signal(object)
-        self._sigprox = SigProxy()
-        self.sigChanged = self._sigprox.sigChanged
+        self.__sigprox = SigProxy()
+        self.sigChanged = self.__sigprox.sigChanged
 
         TableWidgetItem.__init__(self, text)
         
     def itemChanged(self):
         self.sigChanged.emit(self)
+
+
+class LabeledLineEdit(QtGui.QWidget):
+    def __init__(self, label, parent):
+        QtGui.QWidget.__init__(self, parent)
+        self.layout = QtGui.QGridLayout()
+        self.setLayout(self.layout)
+        self.layout.setSpacing(2)
+        self.layout.setContentsMargins(3, 3, 3, 3)
+        self.label = QtGui.QLabel(label)
+        self.layout.addWidget(self.label, 0, 0)
+        self.text = QtGui.QLineEdit()
+        self.layout.addWidget(self.text, 1, 0)
+        
+        self.editingFinished = self.text.editingFinished
+
+
+class ReagentItem(TableWidgetItem):
+    def __init__(self, reagent, stock):
+        class SigProxy(QtCore.QObject):
+            sigStockConcentrationChanged = QtCore.Signal(object, object)
+        self.__sigprox = SigProxy()
+        self.sigStockConcentrationChanged = self.__sigprox.sigStockConcentrationChanged
+
+        TableWidgetItem.__init__(self, '')
+        self.reagent = reagent
+        
+        self.menu = QtGui.QMenu()
+        self.action = QtGui.QWidgetAction(self.menu)
+        self.concEdit = LabeledLineEdit('Stock concentration:', self.menu)
+        self.concEdit.text.setPlaceholderText('[ none ]')
+        if stock is not None:
+            self.concEdit.text.setText('%0.2f' % stock)
+        self.action.setDefaultWidget(self.concEdit)
+        self.menu.addAction(self.action)
+        self.concEdit.editingFinished.connect(self.stockTextChanged)
+        
+        self.updateText(stock)
+        
+    def updateText(self, stock):
+        text = self.reagent + ('' if stock is None else ' (%0.2fM)'%stock)
+        self.setText(text)
+        
+    def itemClicked(self):
+        tw = self.tableWidget()
+        x = tw.verticalHeader().width() + tw.horizontalHeader().sectionPosition(tw.column(self))
+        y = tw.horizontalHeader().height() + tw.visualItemRect(self).bottom()
+        self.menu.popup(tw.mapToGlobal(QtCore.QPoint(x, y)))
+        
+    def stockTextChanged(self):
+        t = self.concEdit.text.text()
+        if t == '':
+            conc = None
+        else:
+            conc = float(t)
+        self.updateText(conc)
+        self.sigStockConcentrationChanged.emit(self, conc)
+        self.menu.hide()

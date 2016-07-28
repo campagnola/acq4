@@ -267,26 +267,27 @@ class Recipe(object):
     def __init__(self, solution=None, stocks=None, volumes=None, notes=None):
         self.solution = solution
         self.volumes = [] if volumes is None else volumes
-        # concentrations of stock solutions per reagent
-        self.stocks = {} if stocks is None else stocks  
         self.notes = notes
 
     def save(self):
-        return {'solution': self.solution.name, 'volumes': self.volumes, 'stocks': self.stocks, 'notes': self.notes}
+        return {'solution': self.solution.name, 'volumes': self.volumes, 'notes': self.notes}
 
 
 class RecipeSet(object):
-    def __init__(self, name, recipes=None, order=None):
+    def __init__(self, name, recipes=None, order=None, stocks=None):
         self.name = name
         self.recipes = [] if recipes is None else recipes
         self.reagentOrder = [] if order is None else order
+        # concentrations of stock solutions per reagent
+        self.stocks = {} if stocks is None else stocks  
         self.showMW = False
         self.showConcentration = False
 
     def save(self):
         recipes = [r.save() for r in self.recipes]
-        return {'name': self.name, 'order': self.reagentOrder, 'showMW': self.showMW, 
-                'showConcentration': self.showConcentration, 'recipes': recipes} 
+        return {'name': self.name, 'order': self.reagentOrder, 'stocks': self.stocks,
+                'showMW': self.showMW, 'showConcentration': self.showConcentration,
+                'recipes': recipes} 
 
 
 class RecipeBook(object):
