@@ -60,7 +60,7 @@ class RecipeEditorWidget(QtGui.QWidget):
     def updateSolutionGroups(self):
         self.solutionGroups = []
         for recipe in self.recipeSet.recipes:
-            grp = SolutionItemGroup(self.ui.recipeTable, recipe, self.db)
+            grp = SolutionItemGroup(self.ui.recipeTable, self.recipeSet, recipe, self.db)
             self.solutionGroups.append(grp)
         self.updateRecipeTable()
         
@@ -136,7 +136,7 @@ class RecipeEditorWidget(QtGui.QWidget):
         soln = self.db.solutions[soln]
         recipe = Recipe(solution=soln, volumes=[100])
         self.recipeSet.recipes.append(recipe)
-        grp = SolutionItemGroup(self.ui.recipeTable, recipe, self.db)
+        grp = SolutionItemGroup(self.ui.recipeTable, self.recipeSet, recipe, self.db)
         self.solutionGroups.append(grp)
         grp.sigColumnCountChanged.connect(self.updateRecipeTable)
         self.updateRecipeTable()
@@ -210,11 +210,12 @@ class SolutionItemGroup(QtCore.QObject):
     sigColumnCountChanged = QtCore.Signal(object)  # self
     sigSolutionChanged = QtCore.Signal(object)  # self
     
-    def __init__(self, table, recipe, db):
+    def __init__(self, table, recipeSet, recipe, db):
         QtCore.QObject.__init__(self)
         self.db = db
         self.table = table
         self.recipe = recipe
+        self.recipeSet = recipeSet
         
     def columns(self):
         return len(self.recipe.volumes) + 1
@@ -257,9 +258,17 @@ class SolutionItemGroup(QtCore.QObject):
         reagents = self.recipe.solution.reagents
         for j, vol in enumerate(self.recipe.volumes):
             for reagent, conc in reagents.items():
-                mw = self.db.reagents[reagent]['molweight']
-                mass = float((vol * 1e-3) * (conc * 1e-3) * (mw * 1e3))
-                self.reagentItems[reagent][j].setText('%0.2f' % mass)
+                stock = self.recipeSet.stocks.get(reagent, None)
+                item = self.reagentItems[reagent][j]
+                if stock is None:
+                    mw = self.db.reagents[reagent]['molweight']
+                    mass = float((vol * 1e-3) * (conc * 1e-3) * (mw * 1e3))
+                    item.setText('%0.2f' % mass)
+                    item.setForeground(QtGui.QColor(0, 0, 0))
+                else:
+                    rvol = float((vol * 1e-3) * (conc * 1e-3) / (stock * 1e-3))
+                    item.setText('%0.2f' % rvol)
+                    item.setForeground(QtGui.QColor(0, 0, 150))
         
     def addVolumeClicked(self):
         self.recipe.volumes.append(100)

@@ -264,7 +264,7 @@ def _loadRec(arr, rec):
         
 
 class Recipe(object):
-    def __init__(self, solution=None, stocks=None, volumes=None, notes=None):
+    def __init__(self, solution=None, volumes=None, notes=None):
         self.solution = solution
         self.volumes = [] if volumes is None else volumes
         self.notes = notes
