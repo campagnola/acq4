@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>459</width>
+    <width>619</width>
     <height>242</height>
    </rect>
   </property>
@@ -27,6 +27,13 @@
       <widget class="QCheckBox" name="showConcentrationCheck">
        <property name="text">
         <string>Show concentrations</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="copyHtmlBtn">
+       <property name="text">
+        <string>Copy HTML</string>
        </property>
       </widget>
      </item>

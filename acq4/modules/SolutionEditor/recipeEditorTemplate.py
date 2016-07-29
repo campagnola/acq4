@@ -25,7 +25,7 @@ except AttributeError:
 class Ui_recipeEditor(object):
     def setupUi(self, recipeEditor):
         recipeEditor.setObjectName(_fromUtf8("recipeEditor"))
-        recipeEditor.resize(459, 242)
+        recipeEditor.resize(619, 242)
         self.gridLayout = QtGui.QGridLayout(recipeEditor)
         self.gridLayout.setObjectName(_fromUtf8("gridLayout"))
         self.horizontalLayout = QtGui.QHBoxLayout()
@@ -36,6 +36,9 @@ class Ui_recipeEditor(object):
         self.showConcentrationCheck = QtGui.QCheckBox(recipeEditor)
         self.showConcentrationCheck.setObjectName(_fromUtf8("showConcentrationCheck"))
         self.horizontalLayout.addWidget(self.showConcentrationCheck)
+        self.copyHtmlBtn = QtGui.QPushButton(recipeEditor)
+        self.copyHtmlBtn.setObjectName(_fromUtf8("copyHtmlBtn"))
+        self.horizontalLayout.addWidget(self.copyHtmlBtn)
         spacerItem = QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum)
         self.horizontalLayout.addItem(spacerItem)
         self.gridLayout.addLayout(self.horizontalLayout, 0, 0, 1, 1)
@@ -57,4 +60,5 @@ class Ui_recipeEditor(object):
         recipeEditor.setWindowTitle(_translate("recipeEditor", "Form", None))
         self.showMWCheck.setText(_translate("recipeEditor", "Show molecular weights", None))
         self.showConcentrationCheck.setText(_translate("recipeEditor", "Show concentrations", None))
+        self.copyHtmlBtn.setText(_translate("recipeEditor", "Copy HTML", None))
 
