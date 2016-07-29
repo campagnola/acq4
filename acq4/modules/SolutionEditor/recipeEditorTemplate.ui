@@ -17,14 +17,14 @@
    <item row="0" column="0">
     <layout class="QHBoxLayout" name="horizontalLayout">
      <item>
-      <widget class="QCheckBox" name="checkBox">
+      <widget class="QCheckBox" name="showMWCheck">
        <property name="text">
         <string>Show molecular weights</string>
        </property>
       </widget>
      </item>
      <item>
-      <widget class="QCheckBox" name="checkBox_2">
+      <widget class="QCheckBox" name="showConcentrationCheck">
        <property name="text">
         <string>Show concentrations</string>
        </property>

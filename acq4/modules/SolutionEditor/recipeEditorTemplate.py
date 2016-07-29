@@ -30,12 +30,12 @@ class Ui_recipeEditor(object):
         self.gridLayout.setObjectName(_fromUtf8("gridLayout"))
         self.horizontalLayout = QtGui.QHBoxLayout()
         self.horizontalLayout.setObjectName(_fromUtf8("horizontalLayout"))
-        self.checkBox = QtGui.QCheckBox(recipeEditor)
-        self.checkBox.setObjectName(_fromUtf8("checkBox"))
-        self.horizontalLayout.addWidget(self.checkBox)
-        self.checkBox_2 = QtGui.QCheckBox(recipeEditor)
-        self.checkBox_2.setObjectName(_fromUtf8("checkBox_2"))
-        self.horizontalLayout.addWidget(self.checkBox_2)
+        self.showMWCheck = QtGui.QCheckBox(recipeEditor)
+        self.showMWCheck.setObjectName(_fromUtf8("showMWCheck"))
+        self.horizontalLayout.addWidget(self.showMWCheck)
+        self.showConcentrationCheck = QtGui.QCheckBox(recipeEditor)
+        self.showConcentrationCheck.setObjectName(_fromUtf8("showConcentrationCheck"))
+        self.horizontalLayout.addWidget(self.showConcentrationCheck)
         spacerItem = QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum)
         self.horizontalLayout.addItem(spacerItem)
         self.gridLayout.addLayout(self.horizontalLayout, 0, 0, 1, 1)
@@ -55,6 +55,6 @@ class Ui_recipeEditor(object):
 
     def retranslateUi(self, recipeEditor):
         recipeEditor.setWindowTitle(_translate("recipeEditor", "Form", None))
-        self.checkBox.setText(_translate("recipeEditor", "Show molecular weights", None))
-        self.checkBox_2.setText(_translate("recipeEditor", "Show concentrations", None))
+        self.showMWCheck.setText(_translate("recipeEditor", "Show molecular weights", None))
+        self.showConcentrationCheck.setText(_translate("recipeEditor", "Show concentrations", None))
 

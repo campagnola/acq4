@@ -33,6 +33,8 @@ class RecipeEditorWidget(QtGui.QWidget):
         self.db.solutions.solutionListChanged.connect(self.solutionsChanged)
         self.ui.recipeTable.cellClicked.connect(self.cellClicked)
         self.ui.recipeTable.cellChanged.connect(self.cellChanged)
+        self.ui.showMWCheck.clicked.connect(self.updateSolutionGroups)
+        self.ui.showConcentrationCheck.clicked.connect(self.updateSolutionGroups)
 
     def cellClicked(self, r, c):
         item = self.ui.recipeTable.item(r, c)
@@ -57,10 +59,15 @@ class RecipeEditorWidget(QtGui.QWidget):
             self.recipeSet = rs
             self.updateSolutionGroups()
         
+    def mkSolutionGroup(self, recipe):
+        showMW = self.ui.showMWCheck.isChecked()
+        showConc = self.ui.showConcentrationCheck.isChecked()
+        return SolutionItemGroup(self.ui.recipeTable, self.recipeSet, recipe, self.db, showMW, showConc)
+        
     def updateSolutionGroups(self):
         self.solutionGroups = []
         for recipe in self.recipeSet.recipes:
-            grp = SolutionItemGroup(self.ui.recipeTable, self.recipeSet, recipe, self.db)
+            grp = self.mkSolutionGroup(recipe)
             self.solutionGroups.append(grp)
         self.updateRecipeTable()
         
@@ -136,7 +143,7 @@ class RecipeEditorWidget(QtGui.QWidget):
         soln = self.db.solutions[soln]
         recipe = Recipe(solution=soln, volumes=[100])
         self.recipeSet.recipes.append(recipe)
-        grp = SolutionItemGroup(self.ui.recipeTable, self.recipeSet, recipe, self.db)
+        grp = self.mkSolutionGroup(recipe)
         self.solutionGroups.append(grp)
         grp.sigColumnCountChanged.connect(self.updateRecipeTable)
         self.updateRecipeTable()
@@ -210,15 +217,17 @@ class SolutionItemGroup(QtCore.QObject):
     sigColumnCountChanged = QtCore.Signal(object)  # self
     sigSolutionChanged = QtCore.Signal(object)  # self
     
-    def __init__(self, table, recipeSet, recipe, db):
+    def __init__(self, table, recipeSet, recipe, db, showMW=False, showConc=False):
         QtCore.QObject.__init__(self)
         self.db = db
         self.table = table
         self.recipe = recipe
         self.recipeSet = recipeSet
+        self.showMW = showMW
+        self.showConc = showConc
         
     def columns(self):
-        return len(self.recipe.volumes) + 1
+        return len(self.recipe.volumes) + 1 + int(self.showMW) + int(self.showConc)
     
     def setupItems(self, col=None):
         if col is not None:
@@ -226,11 +235,31 @@ class SolutionItemGroup(QtCore.QObject):
         col = self.column
         
         self.solutionItem = SolutionItem(self.recipe.solution.name)
-        self.table.setSpan(0, col, 1, len(self.recipe.volumes)+1)
+        self.table.setSpan(0, col, 1, self.columns())
         self.table.setItem(0, col, self.solutionItem)
         self.volumeItems = []
         reagents = self.recipe.solution.reagents
         self.reagentItems = {r:[] for r in self.reagentOrder}
+
+        if self.showMW:
+            header = TableWidgetItem('MW')
+            self.table.setItem(1, col, header)
+            for row, reagent in enumerate(self.reagentOrder):
+                mw = self.db.reagents[reagent]['molweight']
+                ritem = TableWidgetItem('%0.1f' % mw)
+                self.table.setItem(row+2, col, ritem)
+            col += 1
+            
+        if self.showConc:
+            header = TableWidgetItem('Concentration')
+            self.table.setItem(1, col, header)
+            for row, reagent in enumerate(self.reagentOrder):
+                conc = self.recipe.solution.reagents.get(reagent, None)
+                conc = '' if conc is None else '%0.1f' % conc
+                ritem = TableWidgetItem(conc)
+                self.table.setItem(row+2, col, ritem)
+            col += 1
+            
         for j, vol in enumerate(self.recipe.volumes):
             vitem = EditableItem(str(vol))
             vitem.setBackgroundColor(QtGui.QColor(240, 240, 240))
@@ -249,7 +278,7 @@ class SolutionItemGroup(QtCore.QObject):
         self.addVolumeItem.borders['bottom'] = QtGui.QPen(QtGui.QColor(50, 50, 50))
         
         for row in range(self.table.rowCount()):
-            self.table.item(row, col).borders['left'] = QtGui.QPen(QtGui.QColor(0, 0, 0))
+            self.table.item(row, self.column).borders['left'] = QtGui.QPen(QtGui.QColor(0, 0, 0))
         
         self.addVolumeItem.sigClicked.connect(self.addVolumeClicked)
         self.table.setItem(1, col+len(self.recipe.volumes), self.addVolumeItem)    
