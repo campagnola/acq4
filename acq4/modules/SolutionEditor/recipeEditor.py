@@ -6,13 +6,10 @@ from .recipeEditorTemplate import Ui_recipeEditor
 
 """
 TODO:
- - copy HTML
- - fix column widths
  - per-solution notes
  - save/load
- - indicate table units somewhere..
+ - add / copy / remove recipe set
  - highlight row/column headers for selected cell
-
 
 """
 
@@ -36,7 +33,7 @@ class RecipeEditorWidget(QtGui.QWidget):
         table.horizontalHeader().hide()
         table.verticalHeader().hide()
         
-        self.ui.recipeSetList.currentRowChanged.connect(self.currentRecipeSetChanged)
+        self.ui.recipeSetList.currentItemChanged.connect(self.currentRecipeSetChanged)
         
         self.styleDelegate = StyleDelegate(table)
 
@@ -47,7 +44,9 @@ class RecipeEditorWidget(QtGui.QWidget):
         self.ui.recipeTable.cellClicked.connect(self.cellClicked)
         self.ui.recipeTable.cellChanged.connect(self.cellChanged)
         self.ui.showMWCheck.clicked.connect(self.updateRecipeTable)
+        self.ui.showFormulaeCheck.clicked.connect(self.updateRecipeTable)
         self.ui.showConcentrationCheck.clicked.connect(self.updateSolutionGroups)
+        self.ui.copyHtmlBtn.clicked.connect(self.copyHtml)
 
     def cellClicked(self, r, c):
         item = self.ui.recipeTable.item(r, c)
@@ -66,7 +65,8 @@ class RecipeEditorWidget(QtGui.QWidget):
         if self.addSolutionItem is not None:
             self.addSolutionItem.setAllSolutions(self.db.solutions)
         
-    def currentRecipeSetChanged(self, row):
+    def currentRecipeSetChanged(self, item):
+        row = self.ui.recipeSetList.indexOfTopLevelItem(item)
         rs = self.db.recipes.recipeSets[row]
         if rs is not self.recipeSet:
             self.recipeSet = rs
@@ -74,7 +74,19 @@ class RecipeEditorWidget(QtGui.QWidget):
         
     def mkSolutionGroup(self, recipe):
         showConc = self.ui.showConcentrationCheck.isChecked()
-        return SolutionItemGroup(self.ui.recipeTable, self.recipeSet, recipe, self.db, showConc)
+        grp = SolutionItemGroup(self.ui.recipeTable, self.recipeSet, recipe, self.db, showConc)
+        grp.sigSolutionChanged.connect(self.solutionChanged)
+        grp.sigColumnCountChanged.connect(self.updateRecipeTable)
+        return grp
+    
+    def solutionChanged(self, grp, soln):
+        # user selected a new solution for an existing column
+        i = self.solutionGroups.index(grp)
+        if soln == '[remove]':
+            self.recipeSet.recipes.pop(i)
+        else:
+            self.recipeSet.recipes[i].solution = self.db.solutions[soln]
+        self.updateSolutionGroups()
         
     def updateSolutionGroups(self):
         self.solutionGroups = []
@@ -113,12 +125,17 @@ class RecipeEditorWidget(QtGui.QWidget):
             sg.reagentOrder = reagentOrder
         
         # create first column
-        table.setRowCount(2 + len(reagentOrder))
+        table.setRowCount(3 + len(reagentOrder))
         for row, label in enumerate(['', '']):
             item = TableWidgetItem(label)
             table.setItem(row, 0, item)
+        showFormulae = self.ui.showFormulaeCheck.isChecked()
         for row, reagent in enumerate(reagentOrder):
-            item = ReagentItem(reagent, self.recipeSet.stocks.get(reagent, None))
+            name = reagent
+            if showFormulae:
+                formula = self.db.reagents[reagent]['formula']
+                name = reagent if formula == '' else formula
+            item = ReagentItem(name, self.recipeSet.stocks.get(reagent, None))
             table.setItem(row+2, 0, item)
             item.sigStockConcentrationChanged.connect(self.stockConcentrationChanged)
             
@@ -138,9 +155,20 @@ class RecipeEditorWidget(QtGui.QWidget):
             grp.setupItems(col)
             col += grp.columns()
 
-        self.addSolutionItem = SolutionItem()
+        # Extra column for adding solutions
+        self.addSolutionItem = SolutionItem(removable=False)
         table.setItem(0, col, self.addSolutionItem)
 
+        # Add a row for units
+        label = QtGui.QLabel('masses in mg, <span style="color: #0000c8">stock volumes in ml</span>')
+        label.setAlignment(QtCore.Qt.AlignRight)
+        f = label.font()
+        f.setPointSize(8)
+        label.setFont(f)
+        row = len(reagentOrder) + 2
+        table.setSpan(row, 0, 1, table.columnCount())
+        table.setCellWidget(row, 0, label)
+            
         # set header background colors
         for col in range(table.columnCount()):
             table.setItemDelegateForColumn(col, self.styleDelegate)
@@ -156,7 +184,7 @@ class RecipeEditorWidget(QtGui.QWidget):
             item = table.item(row, 0)
             if item is not None:
                 item.setBackgroundColor(QtGui.QColor(240, 240, 240))
-            
+
         table.cellChanged.connect(self.cellChanged)
         self.solutionsChanged()
         self.addSolutionItem.sigChanged.connect(self.newSolutionSelected)
@@ -166,9 +194,10 @@ class RecipeEditorWidget(QtGui.QWidget):
         rsl = self.ui.recipeSetList
         rsl.clear()
         for i, rs in enumerate(self.db.recipes.recipeSets):
-            rsl.addItem(rs.name)
+            item = QtGui.QTreeWidgetItem([rs.name])
+            rsl.addTopLevelItem(item)
             if rs is self.recipeSet:
-                rsl.setCurrentItem(i)
+                rsl.setCurrentItem(item)
             
     def resizeColumns(self):
         table = self.ui.recipeTable
@@ -208,7 +237,6 @@ class RecipeEditorWidget(QtGui.QWidget):
         self.recipeSet.recipes.append(recipe)
         grp = self.mkSolutionGroup(recipe)
         self.solutionGroups.append(grp)
-        grp.sigColumnCountChanged.connect(self.updateRecipeTable)
         self.updateRecipeTable()
         
     def stockConcentrationChanged(self, item, conc):
@@ -218,31 +246,78 @@ class RecipeEditorWidget(QtGui.QWidget):
             self.recipeSet.stocks[item.reagent] = conc
         for sg in self.solutionGroups:
             sg.updateMasses()
-            
-    def renderRecipeSet(self):
-        reagents = self.recipeSet.reagentOrder
-        firstCol = ["Solution", "Volume (ml)"] + reagents
+
+    def copyHtml(self):
+        table = self.ui.recipeTable
         
-        cols = []
-        for recipe in self.recipeSet.recipes:
-            col = [recipe.solution]
-            v = recipe.volume
-            soln = self.db.solutions[recipe.solution]
-            col.append(str(recipe.volume))
-            for r in reagents:
-                if r in soln.reagents:
-                    col.append(str(soln.reagents[r] * v))
-                else:
-                    col.append('')
-            cols.append(col)
+        # decide which columns to skip
+        skip = []
+        for col in range(table.columnCount()):
+            s = False
+            for row in (0, 1):
+                item = table.item(row, col)
+                if item is not None and item.text() == '+':
+                    s = True
+                    break
+            skip.append(s)
             
-        html = '<table style="border: 1px solid black;">\n'
-        for i,row in enumerate(firstCol):
-            html += '  <tr>\n    <td style="background-color: #aaaaaa;">%s</td>' % row
-            html += ''.join(['<td>%s</td>' % col[i] for col in cols])
-            html += '\n  </tr>\n'
-        html += '</table>\n'
-        self.ui.recipeText.setHtml(html)
+        # generate HTML table
+        txt = '<table>\n'
+        for row in range(table.rowCount()):
+            txt += '  <tr>\n'
+            spanskip = 0
+            for col in range(table.columnCount()):
+                # skip cell if a previous cell has wide span
+                if spanskip > 0:
+                    spanskip -= 1
+                    continue
+                # skip column if it was a placeholder / adder column
+                if skip[col]:
+                    continue
+                
+                item = table.item(row, col)
+                span = table.columnSpan(row, col)
+                spanskip = span - 1
+                for c in range(col+1, col+span):
+                    if skip[c]:
+                        span -= 1
+                width = table.horizontalHeader().sectionSize(col)
+                
+                if item is None:
+                    w = table.cellWidget(row, col)
+                    if w is None:
+                        t = ''
+                        style = ''
+                    else:
+                        t = w.text()
+                        fs = w.font().pointSize()
+                        a = w.alignment()
+                        if a & QtCore.Qt.AlignRight > 0:
+                            align = 'right'
+                        elif a & QtCore.Qt.AlignLeftt > 0:
+                            align = 'left'
+                        elif a & QtCore.Qt.AlignCenter > 0:
+                            align = 'center'
+                        style = 'font-size: %dpt; text-align: %s' % (fs, align)
+                else:
+                    t = str(item.text())
+                    bg = item.background().color().name()
+                    fg = item.foreground().color().name()
+                    
+                    style = 'color: %s; background-color: %s;' % (fg, bg)
+                    if hasattr(item, 'borders'):
+                        for k,v in item.borders.items():
+                            style += ' border-%s: 1px solid %s;' % (k, v.color().name())
+                    
+                    
+                txt += '    <td style="font-family: sans-serif; font-size: 10pt; vertical-align: middle; width: %dpx; %s" colspan="%s">%s</td>\n' % (width, style, span, t)
+            txt += '  </tr>\n'
+        txt += '</table>\n'
+
+        # copy to clipboard
+        md = QtCore.QMimeData()
+        md.setHtml(txt)
+        QtGui.QApplication.clipboard().setMimeData(md)
 
 
 class StyleDelegate(QtGui.QStyledItemDelegate):
@@ -260,6 +335,9 @@ class StyleDelegate(QtGui.QStyledItemDelegate):
 class TableWidgetItem(QtGui.QTableWidgetItem):
     def __init__(self, *args):
         QtGui.QTableWidgetItem.__init__(self, *args)
+        # need this because cells report their background incorrectly
+        # if it hasn't been set
+        self.setBackground(QtGui.QColor(255, 255, 255))
         self.borders = {}
         
     def paint(self, painter, option):
@@ -278,7 +356,7 @@ class TableWidgetItem(QtGui.QTableWidgetItem):
 
 class SolutionItemGroup(QtCore.QObject):
     sigColumnCountChanged = QtCore.Signal(object)  # self
-    sigSolutionChanged = QtCore.Signal(object)  # self
+    sigSolutionChanged = QtCore.Signal(object, object)  # self, soln
     
     def __init__(self, table, recipeSet, recipe, db, showConc=False):
         QtCore.QObject.__init__(self)
@@ -297,6 +375,7 @@ class SolutionItemGroup(QtCore.QObject):
         col = self.column
         
         self.solutionItem = SolutionItem(self.recipe.solution.name)
+        self.solutionItem.sigChanged.connect(self.solutionChanged)
         self.table.setSpan(0, col, 1, self.columns())
         self.table.setItem(0, col, self.solutionItem)
         self.volumeItems = []
@@ -314,7 +393,7 @@ class SolutionItemGroup(QtCore.QObject):
             col += 1
             
         for j, vol in enumerate(self.recipe.volumes):
-            vitem = EditableItem(str(vol))
+            vitem = EditableItem('%d' % vol)
             #vitem.setBackgroundColor(QtGui.QColor(240, 240, 240))
             #vitem.borders['bottom'] = QtGui.QPen(QtGui.QColor(50, 50, 50))
             self.volumeItems.append(vitem)
@@ -331,8 +410,10 @@ class SolutionItemGroup(QtCore.QObject):
         #self.addVolumeItem.setBackgroundColor(QtGui.QColor(240, 240, 240))
         #self.addVolumeItem.borders['bottom'] = QtGui.QPen(QtGui.QColor(50, 50, 50))
         
-        for row in range(self.table.rowCount()):
-            self.table.item(row, self.column).borders['left'] = QtGui.QPen(QtGui.QColor(0, 0, 0))
+        for row in range(len(self.reagentOrder) + 2):
+            item = self.table.item(row, self.column)
+            if item is not None:
+                item.borders['left'] = QtGui.QPen(QtGui.QColor(0, 0, 0))
         
         self.addVolumeItem.sigClicked.connect(self.addVolumeClicked)
         self.table.setItem(1, col+len(self.recipe.volumes), self.addVolumeItem)    
@@ -350,8 +431,8 @@ class SolutionItemGroup(QtCore.QObject):
                     item.setForeground(QtGui.QColor(0, 0, 0))
                 else:
                     rvol = float((vol * 1e-3) * (conc * 1e-3) / (stock * 1e-3))
-                    item.setText('%0.2g' % rvol)
-                    item.setForeground(QtGui.QColor(0, 0, 150))
+                    item.setText('%.4g' % rvol)
+                    item.setForeground(QtGui.QColor(0, 0, 200))
         
     def addVolumeClicked(self):
         self.recipe.volumes.append(100)
@@ -377,17 +458,18 @@ class SolutionItemGroup(QtCore.QObject):
             self.recipe.volumes = vols
             self.updateMasses()
         
-    def updateItems(self):
-        pass
-
+    def solutionChanged(self, item, soln):
+        self.sigSolutionChanged.emit(self, soln)
+        
 
 class SolutionItem(TableWidgetItem):
-    def __init__(self, soln='+'):
+    def __init__(self, soln='+', removable=True):
         class SigProxy(QtCore.QObject):
             sigChanged = QtCore.Signal(object, object)
         self._sigprox = SigProxy()
         self.sigChanged = self._sigprox.sigChanged
 
+        self.removable = removable
         TableWidgetItem.__init__(self, soln)
         self.menu = QtGui.QMenu()
         self.setTextAlignment(QtCore.Qt.AlignCenter)
@@ -398,7 +480,8 @@ class SolutionItem(TableWidgetItem):
     def setAllSolutions(self, solutions):
         # list of solutions to show in dropdown menu
         self.menu.clear()
-        self.menu.addAction('[none]', self.selectionChanged)
+        if self.removable:
+            self.menu.addAction('[remove]', self.selectionChanged)
         grp = None
         for sol in solutions.data:
             if sol.group != grp:
