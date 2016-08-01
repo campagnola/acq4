@@ -48,7 +48,7 @@ class Ui_recipeEditor(object):
         self.splitter = QtGui.QSplitter(recipeEditor)
         self.splitter.setOrientation(QtCore.Qt.Horizontal)
         self.splitter.setObjectName(_fromUtf8("splitter"))
-        self.recipeSetList = QtGui.QTreeWidget(self.splitter)
+        self.recipeSetList = TreeWidget(self.splitter)
         self.recipeSetList.setHeaderHidden(True)
         self.recipeSetList.setObjectName(_fromUtf8("recipeSetList"))
         self.recipeSetList.headerItem().setText(0, _fromUtf8("1"))
@@ -68,3 +68,4 @@ class Ui_recipeEditor(object):
         self.showConcentrationCheck.setText(_translate("recipeEditor", "Show concentrations", None))
         self.copyHtmlBtn.setText(_translate("recipeEditor", "Copy HTML", None))
 
+from acq4.pyqtgraph import TreeWidget

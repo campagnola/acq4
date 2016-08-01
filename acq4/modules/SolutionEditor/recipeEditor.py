@@ -1,7 +1,7 @@
 import acq4.pyqtgraph as pg
 from acq4.pyqtgraph.Qt import QtGui, QtCore
 from .core import RecipeSet, Recipe
-from .treeWidget import ItemDelegate, GroupItem
+from .treeWidget import AdderItem
 from .recipeEditorTemplate import Ui_recipeEditor
 
 """
@@ -33,7 +33,9 @@ class RecipeEditorWidget(QtGui.QWidget):
         table.horizontalHeader().hide()
         table.verticalHeader().hide()
         
-        self.ui.recipeSetList.currentItemChanged.connect(self.currentRecipeSetChanged)
+        rsl = self.ui.recipeSetList
+        rsl.currentItemChanged.connect(self.currentRecipeSetChanged)
+        rsl.setEditTriggers(rsl.SelectedClicked | rsl.DoubleClicked)
         
         self.styleDelegate = StyleDelegate(table)
 
@@ -47,6 +49,7 @@ class RecipeEditorWidget(QtGui.QWidget):
         self.ui.showFormulaeCheck.clicked.connect(self.updateRecipeTable)
         self.ui.showConcentrationCheck.clicked.connect(self.updateSolutionGroups)
         self.ui.copyHtmlBtn.clicked.connect(self.copyHtml)
+        rsl.itemChanged.connect(self.recipeSetItemChanged)
 
     def cellClicked(self, r, c):
         item = self.ui.recipeTable.item(r, c)
@@ -195,9 +198,34 @@ class RecipeEditorWidget(QtGui.QWidget):
         rsl.clear()
         for i, rs in enumerate(self.db.recipes.recipeSets):
             item = QtGui.QTreeWidgetItem([rs.name])
+            item.setFlags(item.flags() | QtCore.Qt.ItemIsEditable)
+            item.recipeSet = self.db.recipes.recipeSets[i]
             rsl.addTopLevelItem(item)
             if rs is self.recipeSet:
                 rsl.setCurrentItem(item)
+        self.recipeSetAdder = AdderItem('Add recipe set')
+        rsl.addTopLevelItem(self.recipeSetAdder)
+        self.recipeSetAdder.clicked.connect(self.addRecipeSet)
+        
+    def addRecipeSet(self):
+        i = 1
+        rsnames = [rs.name for rs in self.db.recipes.recipeSets]
+        while True:
+            name = 'RecipeSet_%d' % i
+            if name not in rsnames:
+                break
+            i += 1
+        rs = RecipeSet(name)
+        self.db.recipes.recipeSets.append(rs)
+        self.updateRecipeSetList()
+        
+        # select new item
+        rsl = self.ui.recipeSetList
+        item = rsl.topLevelItem(rsl.topLevelItemCount()-2)
+        rsl.setCurrentItem(item, 0, QtGui.QItemSelectionModel.SelectCurrent)
+            
+    def recipeSetItemChanged(self, item, col):
+        item.recipeSet.name = item.text(0)
             
     def resizeColumns(self):
         table = self.ui.recipeTable
@@ -406,7 +434,7 @@ class SolutionItemGroup(QtCore.QObject):
         
         self.updateMasses()
             
-        self.addVolumeItem = AdderItem()
+        self.addVolumeItem = TableAdderItem()
         #self.addVolumeItem.setBackgroundColor(QtGui.QColor(240, 240, 240))
         #self.addVolumeItem.borders['bottom'] = QtGui.QPen(QtGui.QColor(50, 50, 50))
         
@@ -508,7 +536,7 @@ class SolutionItem(TableWidgetItem):
         self.menu.popup(tw.mapToGlobal(QtCore.QPoint(x, y)))
 
 
-class AdderItem(TableWidgetItem):
+class TableAdderItem(TableWidgetItem):
     def __init__(self):
         class SigProxy(QtCore.QObject):
             sigClicked = QtCore.Signal(object)
