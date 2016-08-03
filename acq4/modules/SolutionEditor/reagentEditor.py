@@ -28,6 +28,7 @@ class ReagentEditorWidget(QtGui.QWidget):
             if group not in grpItems:
                 grpItems[group] = GroupItem(group, adder='add reagent')
                 tree.addTopLevelItem(grpItems[group])
+                tree.setFirstItemColumnSpanned(grpItems[group], True)
             grpItem = grpItems[group]
             grpItem.addChild(item)
 

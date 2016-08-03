@@ -272,9 +272,16 @@ class Recipe(object):
     def save(self):
         return {'solution': self.solution.name, 'volumes': self.volumes, 'notes': self.notes}
 
+    def copy(self):
+        r = Recipe()
+        r.volumes = self.volumes[:]
+        r.notes = self.notes
+        r.solution = self.solution
+        return r
+
 
 class RecipeSet(object):
-    def __init__(self, name, recipes=None, order=None, stocks=None):
+    def __init__(self, name=None, recipes=None, order=None, stocks=None):
         self.name = name
         self.recipes = [] if recipes is None else recipes
         self.reagentOrder = [] if order is None else order
@@ -285,9 +292,19 @@ class RecipeSet(object):
 
     def save(self):
         recipes = [r.save() for r in self.recipes]
-        return {'name': self.name, 'order': self.reagentOrder, 'stocks': self.stocks,
+        return {'name': self.name, 'order': self.reagentOrder[:], 'stocks': self.stocks.copy(),
                 'showMW': self.showMW, 'showConcentration': self.showConcentration,
                 'recipes': recipes} 
+
+    def restore(self, state):
+        self.__dict__.update(state)
+
+    def copy(self, name):
+        rs = RecipeSet()
+        rs.restore(self.save())
+        rs.name = name
+        rs.recipes = [r.copy() for r in self.recipes]
+        return rs
 
 
 class RecipeBook(object):

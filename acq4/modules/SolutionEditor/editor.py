@@ -1,3 +1,4 @@
+import json
 from acq4.pyqtgraph.Qt import QtGui, QtCore
 from .core import SolutionDatabase
 from .reagentEditor import ReagentEditorWidget

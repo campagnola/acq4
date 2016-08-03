@@ -8,7 +8,6 @@ from .recipeEditorTemplate import Ui_recipeEditor
 TODO:
  - per-solution notes
  - save/load
- - add / copy / remove recipe set
  - highlight row/column headers for selected cell
 
 """
@@ -36,9 +35,9 @@ class RecipeEditorWidget(QtGui.QWidget):
         rsl = self.ui.recipeSetList
         rsl.currentItemChanged.connect(self.currentRecipeSetChanged)
         rsl.setEditTriggers(rsl.SelectedClicked | rsl.DoubleClicked)
-        
+        rsl.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.styleDelegate = StyleDelegate(table)
-
+        
         self.updateRecipeSetList()
         self.updateRecipeTable()
         
@@ -50,6 +49,11 @@ class RecipeEditorWidget(QtGui.QWidget):
         self.ui.showConcentrationCheck.clicked.connect(self.updateSolutionGroups)
         self.ui.copyHtmlBtn.clicked.connect(self.copyHtml)
         rsl.itemChanged.connect(self.recipeSetItemChanged)
+        rsl.customContextMenuRequested.connect(self.recipeSetMenuRequested)
+
+    def recipeSetMenuRequested(self, point):
+        item = self.ui.recipeSetList.itemAt(point)
+        item.showContextMenu(point)
 
     def cellClicked(self, r, c):
         item = self.ui.recipeTable.item(r, c)
@@ -70,6 +74,8 @@ class RecipeEditorWidget(QtGui.QWidget):
         
     def currentRecipeSetChanged(self, item):
         row = self.ui.recipeSetList.indexOfTopLevelItem(item)
+        if row >= len(self.db.recipes.recipeSets):
+            return
         rs = self.db.recipes.recipeSets[row]
         if rs is not self.recipeSet:
             self.recipeSet = rs
@@ -197,9 +203,10 @@ class RecipeEditorWidget(QtGui.QWidget):
         rsl = self.ui.recipeSetList
         rsl.clear()
         for i, rs in enumerate(self.db.recipes.recipeSets):
-            item = QtGui.QTreeWidgetItem([rs.name])
+            item = RecipeSetItem(rs)
             item.setFlags(item.flags() | QtCore.Qt.ItemIsEditable)
-            item.recipeSet = self.db.recipes.recipeSets[i]
+            item.sigCopyClicked.connect(self.recipeSetCopyClicked)
+            item.sigRemoveClicked.connect(self.recipeSetRemoveClicked)
             rsl.addTopLevelItem(item)
             if rs is self.recipeSet:
                 rsl.setCurrentItem(item)
@@ -226,6 +233,22 @@ class RecipeEditorWidget(QtGui.QWidget):
             
     def recipeSetItemChanged(self, item, col):
         item.recipeSet.name = item.text(0)
+
+    def recipeSetCopyClicked(self, rsetItem):
+        names = [rs.name for rs in self.db.recipes.recipeSets]
+        i = 0
+        while True:
+            name = rsetItem.recipeSet.name + '_copy_%d' % i
+            if name not in names:
+                break
+            i += 1
+        rset = rsetItem.recipeSet.copy(name)
+        self.db.recipes.recipeSets.append(rset)
+        self.updateRecipeSetList()
+
+    def recipeSetRemoveClicked(self, rsetItem):
+        self.db.recipes.recipeSets.remove(rsetItem.recipeSet)
+        self.updateRecipeSetList()
             
     def resizeColumns(self):
         table = self.ui.recipeTable
@@ -619,3 +642,29 @@ class ReagentItem(TableWidgetItem):
         self.updateText(conc)
         self.sigStockConcentrationChanged.emit(self, conc)
         self.menu.hide()
+
+
+class RecipeSetItem(QtGui.QTreeWidgetItem):
+    def __init__(self, rset):
+        class SigProxy(QtCore.QObject):
+            sigCopyClicked = QtCore.Signal(object)
+            sigRemoveClicked = QtCore.Signal(object)
+        self.__sigprox = SigProxy()
+        self.sigCopyClicked = self.__sigprox.sigCopyClicked
+        self.sigRemoveClicked = self.__sigprox.sigRemoveClicked
+
+        self.recipeSet = rset
+        QtGui.QTreeWidgetItem.__init__(self, [rset.name])
+        self.menu = QtGui.QMenu()
+        self.menu.addAction('Copy', self.copyClicked)
+        self.menu.addAction('Remove', self.removeClicked)
+        
+    def showContextMenu(self, point):
+        pt = self.treeWidget().mapToGlobal(point)
+        self.menu.popup(pt)
+        
+    def copyClicked(self):
+        self.sigCopyClicked.emit(self)
+        
+    def removeClicked(self):
+        self.sigRemoveClicked.emit(self)
