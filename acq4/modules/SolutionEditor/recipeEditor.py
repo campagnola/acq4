@@ -42,6 +42,7 @@ class RecipeEditorWidget(QtGui.QWidget):
         self.updateRecipeTable()
         
         self.db.solutions.solutionListChanged.connect(self.solutionsChanged)
+        self.db.recipes.sigRecipeSetListChanged.connect(self.updateRecipeSetList)
         self.ui.recipeTable.cellClicked.connect(self.cellClicked)
         self.ui.recipeTable.cellChanged.connect(self.cellChanged)
         self.ui.showMWCheck.clicked.connect(self.updateRecipeTable)
@@ -224,7 +225,6 @@ class RecipeEditorWidget(QtGui.QWidget):
             i += 1
         rs = RecipeSet(name)
         self.db.recipes.add(rs)
-        self.updateRecipeSetList()
         
         # select new item
         rsl = self.ui.recipeSetList
@@ -235,7 +235,7 @@ class RecipeEditorWidget(QtGui.QWidget):
         item.recipeSet.name = item.text(0)
 
     def recipeSetCopyClicked(self, rsetItem):
-        names = [rs.name for rs in self.db.recipes.recipeSets]
+        names = [rs.name for rs in self.db.recipes]
         i = 0
         while True:
             name = rsetItem.recipeSet.name + '_copy_%d' % i
@@ -243,12 +243,10 @@ class RecipeEditorWidget(QtGui.QWidget):
                 break
             i += 1
         rset = rsetItem.recipeSet.copy(name)
-        self.db.recipes.recipeSets.append(rset)
-        self.updateRecipeSetList()
+        self.db.recipes.add(rset)
 
     def recipeSetRemoveClicked(self, rsetItem):
-        self.db.recipes.recipeSets.remove(rsetItem.recipeSet)
-        self.updateRecipeSetList()
+        self.db.recipes.remove(rsetItem.recipeSet)
             
     def resizeColumns(self):
         table = self.ui.recipeTable

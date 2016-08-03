@@ -62,9 +62,8 @@ class SolutionEditorWindow(QtGui.QMainWindow):
         self.currentFile = fname
         self.setWindowTitle('Solution Editor: ' + fname)
         state = json.load(open(fname, 'rb'))
-        self.reagents.restore(state['reagents'])
+        self.db.restore(state)
         self.reagentEditor.updateReagentList()
-        self.solutions.restore(state['solutions'])
         self.solutionEditor.updateSolutionList()
         self.solutionEditor.updateSolutionTree()
         

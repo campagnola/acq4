@@ -7,7 +7,6 @@ from acq4.modules.SolutionEditor.editor import SolutionEditorWindow
 from acq4.modules.SolutionEditor.core import Solution, Recipe, RecipeSet, SolutionDatabase
 
 #import pyqtgraph as pg
-#app = QtGui.QApplication([])
 #pg.dbg()
 
 

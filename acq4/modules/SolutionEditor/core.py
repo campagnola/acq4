@@ -109,7 +109,7 @@ class Reagents(QtCore.QObject):
         return np.unique(self.data['group'])
 
     def __getitem__(self, names):
-        if isinstance(names, str):
+        if isinstance(names, basestring):
             names = [names]
             returnone = True
         else:
@@ -120,7 +120,7 @@ class Reagents(QtCore.QObject):
             r = np.argwhere(self.data['name'] == n)[:,0]
             if r.shape[0] == 0:
                 continue
-            inds.append(r[0])
+            inds.append(int(r[0]))
 
         if returnone:
             return self.data[inds[0]]
@@ -339,6 +339,11 @@ class RecipeSet(object):
 
     def restore(self, state):
         self.__dict__.update(state)
+        self.recipes = []
+        for rstate in state['recipes']:
+            r = Recipe(db=self.db)
+            r.restore(rstate)
+            self.recipes.append(r)
 
     def copy(self, name):
         rs = RecipeSet(db=self.db)
@@ -348,10 +353,13 @@ class RecipeSet(object):
         return rs
 
 
-class RecipeBook(object):
+class RecipeBook(QtCore.QObject):
     """A simple collection of RecipeSets.
     """
+    sigRecipeSetListChanged = QtCore.Signal(object)  # self
+    
     def __init__(self, db=None):
+        QtCore.QObject.__init__(self)
         self.db = db
         self._recipeSets = []
 
@@ -361,9 +369,11 @@ class RecipeBook(object):
     def add(self, rs):
         self._recipeSets.append(rs)
         rs.db = self.db
+        self.sigRecipeSetListChanged.emit(self)
 
     def remove(self, rs):
         self._recipeSets.remove(rs)
+        self.sigRecipeSetListChanged.emit(self)
 
     def restore(self, state):
         self._recipeSets = []
@@ -371,6 +381,7 @@ class RecipeBook(object):
             rs = RecipeSet(db=self.db)
             rs.restore(s)
             self._recipeSets.append(rs)
+        self.sigRecipeSetListChanged.emit(self)
 
     def __getitem__(self, i):
         return self._recipeSets[i]
@@ -383,8 +394,9 @@ class RecipeBook(object):
             yield rs
 
 
-class SolutionDatabase(object):
+class SolutionDatabase(QtCore.QObject):
     def __init__(self):
+        QtCore.QObject.__init__(self)
         self.reagents = Reagents()
         self.solutions = Solutions(db=self)
         self.recipes = RecipeBook(db=self)
