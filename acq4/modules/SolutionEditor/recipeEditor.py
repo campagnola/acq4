@@ -9,7 +9,7 @@ TODO:
  - per-solution notes
  - save/load
  - highlight row/column headers for selected cell
-
+ - pretty-formatted formula names
 """
 
 
@@ -74,9 +74,9 @@ class RecipeEditorWidget(QtGui.QWidget):
         
     def currentRecipeSetChanged(self, item):
         row = self.ui.recipeSetList.indexOfTopLevelItem(item)
-        if row >= len(self.db.recipes.recipeSets):
+        if row >= len(self.db.recipes):
             return
-        rs = self.db.recipes.recipeSets[row]
+        rs = self.db.recipes[row]
         if rs is not self.recipeSet:
             self.recipeSet = rs
             self.updateSolutionGroups()
@@ -202,7 +202,7 @@ class RecipeEditorWidget(QtGui.QWidget):
     def updateRecipeSetList(self):
         rsl = self.ui.recipeSetList
         rsl.clear()
-        for i, rs in enumerate(self.db.recipes.recipeSets):
+        for i, rs in enumerate(self.db.recipes):
             item = RecipeSetItem(rs)
             item.setFlags(item.flags() | QtCore.Qt.ItemIsEditable)
             item.sigCopyClicked.connect(self.recipeSetCopyClicked)
@@ -216,14 +216,14 @@ class RecipeEditorWidget(QtGui.QWidget):
         
     def addRecipeSet(self):
         i = 1
-        rsnames = [rs.name for rs in self.db.recipes.recipeSets]
+        rsnames = [rs.name for rs in self.db.recipes]
         while True:
             name = 'RecipeSet_%d' % i
             if name not in rsnames:
                 break
             i += 1
         rs = RecipeSet(name)
-        self.db.recipes.recipeSets.append(rs)
+        self.db.recipes.add(rs)
         self.updateRecipeSetList()
         
         # select new item
@@ -534,7 +534,7 @@ class SolutionItem(TableWidgetItem):
         if self.removable:
             self.menu.addAction('[remove]', self.selectionChanged)
         grp = None
-        for sol in solutions.data:
+        for sol in solutions:
             if sol.group != grp:
                 grp = sol.group
                 label = QtGui.QLabel(grp)

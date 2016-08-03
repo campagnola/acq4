@@ -50,9 +50,9 @@ r1 = Recipe(solution=solns['Standard ACSF'], volumes=[1000, 500])
 r2 = Recipe(solution=solns['Diss. ACSF'], volumes=[1000, 500])
 rs = RecipeSet(name='Standard recipes', recipes=[r1, r2])
 rs.stocks['hydrochloric acid'] = 5.0
-db.recipes.recipeSets.append(rs)
+db.recipes.add(rs)
 rs = RecipeSet(name='Recording ACSF', recipes=[r1])
-db.recipes.recipeSets.append(rs)
+db.recipes.add(rs)
 
 
 w = SolutionEditorWindow(db=db)

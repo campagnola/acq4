@@ -56,8 +56,14 @@ DEFAULT_REAGENTS = [
 
 
 
-class Reagents(object):
+class Reagents(QtCore.QObject):
+    """A table of reagents and their properties.
+    """
+    sigReagentListChanged = QtCore.Signal(object)  # self
+    sigReagentDataChanged = QtCore.Signal(object)  # self
+    
     def __init__(self):
+        QtCore.QObject.__init__(self)
         self._dtype = [
             ('group', object),
             ('name', object),
@@ -79,6 +85,8 @@ class Reagents(object):
                 #self.data[-1]['ions'][k] = v
         for k,v in kwds.items():
             self.data[-1][k] = v
+        
+        self.sigReagentListChanged.emit(self)
 
     def remove(self, name):
         try:
@@ -88,6 +96,8 @@ class Reagents(object):
         mask = np.ones(len(self.data), dtype=bool)
         mask[i] = False
         self.data = self.data[mask]
+
+        self.sigReagentListChanged.emit(self)
 
     def save(self):
         return _saveArray(self.data)
@@ -119,38 +129,48 @@ class Reagents(object):
 
 
 class Solutions(QtCore.QObject):
+    """Collection of grouped Solutions.
+    """
+    solutionListChanged = QtCore.Signal(object)  # self
+    solutionDataChanged = QtCore.Signal(object, object)  # self, solution
     
-    solutionListChanged = QtCore.Signal(object)
-    
-    def __init__(self, reagents):
+    def __init__(self, db):
+        self.db = db
         QtCore.QObject.__init__(self)
-        self.reagents = reagents
-        self.data = []
+        self._data = []
         self.groups = []
 
-    def add(self, soln):
-        for s in self.data:
+    def add(self, soln=None, name=None, group=None):
+        if soln is None:
+            soln = Solution(name=name, group=group)
+        soln.db = self.db
+        for s in self._data:
             if s.name == soln.name:
                 raise NameError("Solution with this name already exists.")
-        self.data.append(soln)
+        self._data.append(soln)
         self.solutionListChanged.emit(self)
     
     def __getitem__(self, name):
-        for sol in self.data:
+        for sol in self._data:
             if sol.name == name:
                 return sol
         raise KeyError(name)
+
+    def __iter__(self):
+        for soln in self._data:
+            yield soln
     
     def restore(self, data):
-        self.data = []
+        self._data = []
         for d in data:
-            sol = Solution()
+            sol = Solution(db=self.db)
             sol.restore(d)
-            self.add(sol)
-
+            self._data.append(sol)
+        self.solutionListChanged.emit(self)
+    
     def save(self):
         state = []
-        for sol in self.data:
+        for sol in self._data:
             state.append(sol.save())
         return state
 
@@ -158,12 +178,12 @@ class Solutions(QtCore.QObject):
         """Return estimated ion concentrations, osmolarity, and reversal potentials."""
         results = {}
         for soln in solutions:
-            ions, osm = soln.recalculate(self.reagents)
+            ions, osm = soln.recalculate()
 
             if soln.compareAgainst is None:
                 revs = {ion: None for ion in IONS}
             else:
-                against = self[soln.compareAgainst].recalculate(self.reagents)[0]
+                against = self[soln.compareAgainst].recalculate()[0]
                 if soln.type == 'external':
                     external = ions
                     internal = against
@@ -185,8 +205,14 @@ class Solutions(QtCore.QObject):
         return results
 
 
-class Solution(object):
-    def __init__(self, name=None, group=None, against=None):
+class Solution(QtCore.QObject):
+    """Defines the list of reagents and their concentrations in a solution.
+    """
+    sigSolutionChanged = QtCore.Signal(object)  # self
+    
+    def __init__(self, name=None, group=None, against=None, db=None):
+        QtCore.QObject.__init__(self)
+        self.db = db
         self.name = name
         self.group = group
         self.type = 'internal' if group is not None and 'internal' in group.lower() else 'external'
@@ -204,6 +230,7 @@ class Solution(object):
             self.reagents.pop(name, None)
         else:
             self.reagents[name] = concentration
+        self.sigSolutionChanged.emit(self)
         
     def ___getitem__(self, name):
         """Return the concentration of a reagent.
@@ -222,9 +249,10 @@ class Solution(object):
         self.type = state['type']
         self.compareAgainst = state['compareAgainst']
 
-    def recalculate(self, reagents):
+    def recalculate(self):
         """Calculate ion concentrations and osmolarity.
         """
+        reagents = self.db.reagents
         knownReagents = [r for r in self.reagents.keys() if r in reagents.data['name']]
         reagents = reagents[knownReagents]
         concs = np.array([self.reagents[n] for n in reagents['name']])
@@ -264,13 +292,23 @@ def _loadRec(arr, rec):
         
 
 class Recipe(object):
-    def __init__(self, solution=None, volumes=None, notes=None):
+    """Defines a list of volumes for which reagent masses should be calculated
+    for a particular solution.
+    """
+    
+    def __init__(self, solution=None, volumes=None, notes=None, db=None):
+        self.db = db
         self.solution = solution
         self.volumes = [] if volumes is None else volumes
         self.notes = notes
 
     def save(self):
         return {'solution': self.solution.name, 'volumes': self.volumes, 'notes': self.notes}
+
+    def restore(self, state):
+        self.notes = state['notes']
+        self.volumes = state['volumes']
+        self.solution = self.db.solutions[state['solution']]
 
     def copy(self):
         r = Recipe()
@@ -281,7 +319,10 @@ class Recipe(object):
 
 
 class RecipeSet(object):
-    def __init__(self, name=None, recipes=None, order=None, stocks=None):
+    """Multiple Recipes meant to be displayed together.
+    """
+    def __init__(self, name=None, recipes=None, order=None, stocks=None, db=None):
+        self.db = db
         self.name = name
         self.recipes = [] if recipes is None else recipes
         self.reagentOrder = [] if order is None else order
@@ -300,7 +341,7 @@ class RecipeSet(object):
         self.__dict__.update(state)
 
     def copy(self, name):
-        rs = RecipeSet()
+        rs = RecipeSet(db=self.db)
         rs.restore(self.save())
         rs.name = name
         rs.recipes = [r.copy() for r in self.recipes]
@@ -308,18 +349,45 @@ class RecipeSet(object):
 
 
 class RecipeBook(object):
-    def __init__(self):
-        self.recipeSets = []
+    """A simple collection of RecipeSets.
+    """
+    def __init__(self, db=None):
+        self.db = db
+        self._recipeSets = []
 
     def save(self):
-        return [r.save() for r in self.recipeSets]
+        return [r.save() for r in self._recipeSets]
+
+    def add(self, rs):
+        self._recipeSets.append(rs)
+        rs.db = self.db
+
+    def remove(self, rs):
+        self._recipeSets.remove(rs)
+
+    def restore(self, state):
+        self._recipeSets = []
+        for s in state:
+            rs = RecipeSet(db=self.db)
+            rs.restore(s)
+            self._recipeSets.append(rs)
+
+    def __getitem__(self, i):
+        return self._recipeSets[i]
+
+    def __len__(self):
+        return len(self._recipeSets)
+
+    def __iter__(self):
+        for rs in self._recipeSets:
+            yield rs
 
 
 class SolutionDatabase(object):
     def __init__(self):
         self.reagents = Reagents()
-        self.solutions = Solutions(self.reagents)
-        self.recipes = RecipeBook()
+        self.solutions = Solutions(db=self)
+        self.recipes = RecipeBook(db=self)
         
     def save(self):
         return {
@@ -328,3 +396,7 @@ class SolutionDatabase(object):
             'recipes': self.recipes.save(),
         }
         
+    def restore(self, state):
+        self.reagents.restore(state['reagents'])
+        self.solutions.restore(state['solutions'])
+        self.recipes.restore(state['recipes'])

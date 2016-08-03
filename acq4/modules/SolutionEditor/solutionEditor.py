@@ -8,7 +8,6 @@ from .solutionEditorTemplate import Ui_solutionEditor
 class SolutionEditorWidget(QtGui.QWidget):
     def __init__(self, db, parent=None):
         self.db = db
-        self.solutions = db.solutions
         self.selectedSolutions = []
         self.showAllReagents = False
         
@@ -99,7 +98,7 @@ class SolutionEditorWidget(QtGui.QWidget):
                 slist.removeTopLevelItem(item)
         
         grpItems = {}
-        for soln in self.solutions.data:
+        for soln in self.db.solutions:
             item = pg.TreeWidgetItem([soln.name])
             item.setFlags(QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsDragEnabled | QtCore.Qt.ItemIsEditable | QtCore.Qt.ItemIsUserCheckable)
             if soln.name in self.selectedSolutions:
@@ -115,7 +114,7 @@ class SolutionEditorWidget(QtGui.QWidget):
             grpItem.addChild(item)
 
         self.selectedSolutions = newSel
-        self.reverseAgainstItem.setAllSolutions(self.solutions)
+        self.reverseAgainstItem.setAllSolutions(self.db.solutions)
 
     def addGroup(self, name):
         item = GroupItem(name, adder='add solution', editable=True, checkable=True)
@@ -149,7 +148,7 @@ class SolutionEditorWidget(QtGui.QWidget):
         count = 2
         while True:
             try:
-                self.solutions.add(name=name, group=item.text(0))
+                self.db.solutions.add(name=name, group=item.text(0))
                 break
             except NameError:
                 name = basename + '%d'%count
@@ -175,7 +174,7 @@ class SolutionEditorWidget(QtGui.QWidget):
         for soln in self.selectedSolutions:
             reagents = reagents | set(soln.reagents.keys())
         # check for unknown reagents
-        allReagents = self.solutions.reagents.data['name']
+        allReagents = self.db.reagents.data['name']
         unknown = [r for r in reagents if r not in allReagents]
         # sort
         if self.showAllReagents:
@@ -211,7 +210,7 @@ class SolutionEditorWidget(QtGui.QWidget):
             self.ui.solutionTable.resizeColumnToContents(i)
 
     def recalculate(self):
-        results = self.solutions.recalculate(self.selectedSolutions, self.ui.reverseTempSpin.value())
+        results = self.db.solutions.recalculate(self.selectedSolutions, self.ui.reverseTempSpin.value())
         for i, soln in enumerate(self.selectedSolutions):
             ions, osm, revs = results[soln.name]
             for ion in IONS:
@@ -299,7 +298,7 @@ class ReverseAgainstItem(pg.TreeWidgetItem):
         for menu, soltyp in [(self.internalMenu, 'internal'), (self.externalMenu, 'external')]:
             menu.clear()
             grp = None
-            for sol in solutions.data:
+            for sol in solutions:
                 if sol.type == soltyp:
                     continue
                 if sol.group != grp:
