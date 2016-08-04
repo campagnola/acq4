@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>706</width>
-    <height>226</height>
+    <width>720</width>
+    <height>442</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -60,7 +60,7 @@
     </layout>
    </item>
    <item row="1" column="0">
-    <widget class="QSplitter" name="splitter">
+    <widget class="QSplitter" name="hsplitter">
      <property name="orientation">
       <enum>Qt::Horizontal</enum>
      </property>
@@ -74,7 +74,19 @@
        </property>
       </column>
      </widget>
-     <widget class="QTableWidget" name="recipeTable"/>
+     <widget class="QSplitter" name="vsplitter">
+      <property name="orientation">
+       <enum>Qt::Vertical</enum>
+      </property>
+      <widget class="QTableWidget" name="recipeTable"/>
+      <widget class="QTreeWidget" name="notesTree">
+       <column>
+        <property name="text">
+         <string>Notes</string>
+        </property>
+       </column>
+      </widget>
+     </widget>
     </widget>
    </item>
   </layout>

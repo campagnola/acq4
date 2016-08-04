@@ -7,9 +7,9 @@ from .recipeEditorTemplate import Ui_recipeEditor
 """
 TODO:
  - per-solution notes
- - save/load
  - highlight row/column headers for selected cell
  - pretty-formatted formula names
+ - recipe set name in html
 """
 
 
@@ -26,8 +26,10 @@ class RecipeEditorWidget(QtGui.QWidget):
         QtGui.QWidget.__init__(self, parent)
         self.ui = Ui_recipeEditor()
         self.ui.setupUi(self)
-        self.ui.splitter.setStretchFactor(0, 1)
-        self.ui.splitter.setStretchFactor(1, 5)
+        self.ui.hsplitter.setStretchFactor(0, 1)
+        self.ui.hsplitter.setStretchFactor(1, 5)
+        self.ui.vsplitter.setStretchFactor(0, 3)
+        self.ui.vsplitter.setStretchFactor(1, 1)
         table = self.ui.recipeTable
         table.horizontalHeader().hide()
         table.verticalHeader().hide()
@@ -93,14 +95,14 @@ class RecipeEditorWidget(QtGui.QWidget):
         # user selected a new solution for an existing column
         i = self.solutionGroups.index(grp)
         if soln == '[remove]':
-            self.recipeSet.recipes.pop(i)
+            self.recipeSet.remove(grp.recipe)
         else:
-            self.recipeSet.recipes[i].solution = self.db.solutions[soln]
+            self.recipeSet[i].solution = self.db.solutions[soln]
         self.updateSolutionGroups()
         
     def updateSolutionGroups(self):
         self.solutionGroups = []
-        for recipe in self.recipeSet.recipes:
+        for recipe in self.recipeSet:
             grp = self.mkSolutionGroup(recipe)
             self.solutionGroups.append(grp)
         self.updateRecipeTable()
@@ -120,7 +122,7 @@ class RecipeEditorWidget(QtGui.QWidget):
         table.setColumnCount(sum([s.columns() for s in self.solutionGroups]) + 2 + int(showMW))
         
         # generate new reagent list
-        solns = [r.solution for r in self.recipeSet.recipes]
+        solns = [r.solution for r in self.recipeSet]
         reagents = set()
         for soln in solns:
             reagents |= set(soln.reagents.keys())
@@ -283,7 +285,7 @@ class RecipeEditorWidget(QtGui.QWidget):
     def newSolutionSelected(self, item, soln):
         soln = self.db.solutions[soln]
         recipe = Recipe(solution=soln, volumes=[100])
-        self.recipeSet.recipes.append(recipe)
+        self.recipeSet.add(recipe)
         grp = self.mkSolutionGroup(recipe)
         self.solutionGroups.append(grp)
         self.updateRecipeTable()
@@ -311,7 +313,7 @@ class RecipeEditorWidget(QtGui.QWidget):
             skip.append(s)
             
         # generate HTML table
-        txt = '<table>\n'
+        txt = '<h2>%s</h2><table>\n' % self.recipeSet.name
         for row in range(table.rowCount()):
             txt += '  <tr>\n'
             spanskip = 0

@@ -318,38 +318,60 @@ class Recipe(object):
         return r
 
 
-class RecipeSet(object):
+class RecipeSet(QtCore.QObject):
     """Multiple Recipes meant to be displayed together.
     """
+    sigRecipeListChanged = QtCore.Signal(object)  # self
+    
     def __init__(self, name=None, recipes=None, order=None, stocks=None, db=None):
+        QtCore.QObject.__init__(self)
         self.db = db
         self.name = name
-        self.recipes = [] if recipes is None else recipes
+        self._recipes = [] if recipes is None else recipes
         self.reagentOrder = [] if order is None else order
         # concentrations of stock solutions per reagent
         self.stocks = {} if stocks is None else stocks  
         self.showMW = False
         self.showConcentration = False
 
+    def add(self, r):
+        self._recipes.append(r)
+        self.sigRecipeSetListChanged.emit(self)
+        
+    def remove(self, r):
+        self._recipes.remove(r)
+        self.sigRecipeSetListChanged.emit(self)
+
+    def __iter__(self):
+        for r in self._recipes:
+            yield r
+            
+    def __len__(self):
+        return len(self._recipes)
+        
+    def __getitem__(self, i):
+        return self._recipes[i]
+        
     def save(self):
-        recipes = [r.save() for r in self.recipes]
+        recipes = [r.save() for r in self._recipes]
         return {'name': self.name, 'order': self.reagentOrder[:], 'stocks': self.stocks.copy(),
                 'showMW': self.showMW, 'showConcentration': self.showConcentration,
                 'recipes': recipes} 
 
     def restore(self, state):
         self.__dict__.update(state)
-        self.recipes = []
+        self._recipes = []
         for rstate in state['recipes']:
             r = Recipe(db=self.db)
             r.restore(rstate)
-            self.recipes.append(r)
+            self._recipes.append(r)
+        self.sigRecipeSetListChanged.emit(self)
 
     def copy(self, name):
         rs = RecipeSet(db=self.db)
         rs.restore(self.save())
         rs.name = name
-        rs.recipes = [r.copy() for r in self.recipes]
+        rs.recipes = [r.copy() for r in self._recipes]
         return rs
 
 
