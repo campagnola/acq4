@@ -79,7 +79,7 @@
        <enum>Qt::Vertical</enum>
       </property>
       <widget class="QTableWidget" name="recipeTable"/>
-      <widget class="QTreeWidget" name="notesTree">
+      <widget class="TreeWidget" name="notesTree">
        <column>
         <property name="text">
          <string>Notes</string>

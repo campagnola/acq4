@@ -59,7 +59,7 @@ class Ui_recipeEditor(object):
         self.recipeTable.setObjectName(_fromUtf8("recipeTable"))
         self.recipeTable.setColumnCount(0)
         self.recipeTable.setRowCount(0)
-        self.notesTree = QtGui.QTreeWidget(self.vsplitter)
+        self.notesTree = TreeWidget(self.vsplitter)
         self.notesTree.setObjectName(_fromUtf8("notesTree"))
         self.gridLayout.addWidget(self.hsplitter, 1, 0, 1, 1)
 

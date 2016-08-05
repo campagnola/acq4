@@ -336,11 +336,11 @@ class RecipeSet(QtCore.QObject):
 
     def add(self, r):
         self._recipes.append(r)
-        self.sigRecipeSetListChanged.emit(self)
+        self.sigRecipeListChanged.emit(self)
         
     def remove(self, r):
         self._recipes.remove(r)
-        self.sigRecipeSetListChanged.emit(self)
+        self.sigRecipeListChanged.emit(self)
 
     def __iter__(self):
         for r in self._recipes:
@@ -365,7 +365,7 @@ class RecipeSet(QtCore.QObject):
             r = Recipe(db=self.db)
             r.restore(rstate)
             self._recipes.append(r)
-        self.sigRecipeSetListChanged.emit(self)
+        self.sigRecipeListChanged.emit(self)
 
     def copy(self, name):
         rs = RecipeSet(db=self.db)

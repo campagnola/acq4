@@ -1,3 +1,4 @@
+import re
 import acq4.pyqtgraph as pg
 from acq4.pyqtgraph.Qt import QtGui, QtCore
 from .core import RecipeSet, Recipe
@@ -6,10 +7,8 @@ from .recipeEditorTemplate import Ui_recipeEditor
 
 """
 TODO:
- - per-solution notes
  - highlight row/column headers for selected cell
  - pretty-formatted formula names
- - recipe set name in html
 """
 
 
@@ -201,6 +200,13 @@ class RecipeEditorWidget(QtGui.QWidget):
         self.solutionsChanged()
         self.addSolutionItem.sigChanged.connect(self.newSolutionSelected)
         self.resizeColumns()
+        
+        # update notes table
+        self.ui.notesTree.clear()
+        for recipe in self.recipeSet:
+            item = RecipeNoteItem(recipe)
+            self.ui.notesTree.addTopLevelItem(item)
+        
             
     def updateRecipeSetList(self):
         rsl = self.ui.recipeSetList
@@ -313,7 +319,7 @@ class RecipeEditorWidget(QtGui.QWidget):
             skip.append(s)
             
         # generate HTML table
-        txt = '<h2>%s</h2><table>\n' % self.recipeSet.name
+        txt = '<div style="font-family: sans-serif"><h2>%s</h2><table>\n' % self.recipeSet.name
         for row in range(table.rowCount()):
             txt += '  <tr>\n'
             spanskip = 0
@@ -365,6 +371,17 @@ class RecipeEditorWidget(QtGui.QWidget):
             txt += '  </tr>\n'
         txt += '</table>\n'
 
+        # copy notes
+        txt += '<span style="font-size: 10pt;">\n'
+        for i in range(self.ui.notesTree.topLevelItemCount()):
+            item = self.ui.notesTree.topLevelItem(i)
+            note = item.noteHtml()
+            if note != '':
+                txt += '\n<br><br>' + note
+        txt += '</span>\n'
+
+        txt += '\n</div>'
+        
         # copy to clipboard
         md = QtCore.QMimeData()
         md.setHtml(txt)
@@ -668,3 +685,46 @@ class RecipeSetItem(QtGui.QTreeWidgetItem):
         
     def removeClicked(self):
         self.sigRemoveClicked.emit(self)
+
+
+class RecipeNoteItem(pg.TreeWidgetItem):
+    def __init__(self, recipe):
+        self.recipe = recipe
+        pg.TreeWidgetItem.__init__(self, [recipe.solution.name])
+        self.textItem = pg.TreeWidgetItem()
+        self.addChild(self.textItem)
+        self.editor = RichTextEdit()
+        self.textItem.setWidget(0, self.editor)
+        self.editor.setHtml(recipe.notes)
+        self.editor.textChanged.connect(self.textChanged)
+        
+    def textChanged(self):
+        if self.editor.toPlainText().strip() == '':
+            self.recipe.notes = None
+        else:
+            self.recipe.notes = self.editor.toHtml()
+    
+    def noteHtml(self):
+        if self.editor.toPlainText().strip() == '':
+            return ''
+        note = self.editor.toHtml()
+        return "<b>%s</b><br>\n%s" % (self.recipe.solution.name, note) 
+    
+    
+class RichTextEdit(QtGui.QTextEdit):
+    def __init__(self, *args):
+        QtGui.QTextEdit.__init__(self, *args)
+        self.setToolTip('Formatting keys:<br><b>bold: ctrl-b</b><br><i>italic: ctrl-i</i><br><span style="text-decoration: underline">underline: ctrl-u</span>')
+        
+    def keyPressEvent(self, ev):
+        if ev.key() == QtCore.Qt.Key_B and ev.modifiers() == QtCore.Qt.ControlModifier:
+            if self.fontWeight() == QtGui.QFont.Normal:
+                self.setFontWeight(QtGui.QFont.Bold)
+            else:
+                self.setFontWeight(QtGui.QFont.Normal)
+        elif ev.key() == QtCore.Qt.Key_I and ev.modifiers() == QtCore.Qt.ControlModifier:
+            self.setFontItalic(not self.fontItalic())
+        elif ev.key() == QtCore.Qt.Key_U and ev.modifiers() == QtCore.Qt.ControlModifier:
+            self.setFontUnderline(not self.fontUnderline())
+        else:
+            return QtGui.QTextEdit.keyPressEvent(self, ev)

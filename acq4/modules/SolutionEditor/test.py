@@ -45,7 +45,7 @@ sol['GTP sodium hydrate'] = 0.3
 solns.add(sol)
 
 
-r1 = Recipe(solution=solns['Standard ACSF'], volumes=[1000, 500])
+r1 = Recipe(solution=solns['Standard ACSF'], volumes=[1000, 500], notes="Here's how you make <i>this</i> recipe...")
 r2 = Recipe(solution=solns['Diss. ACSF'], volumes=[1000, 500])
 rs = RecipeSet(name='Standard recipes', recipes=[r1, r2])
 rs.stocks['hydrochloric acid'] = 5.0
