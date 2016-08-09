@@ -101,9 +101,9 @@ class SolutionEditorWidget(QtGui.QWidget):
         for soln in self.db.solutions:
             item = pg.TreeWidgetItem([soln.name])
             item.setFlags(QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsDragEnabled | QtCore.Qt.ItemIsEditable | QtCore.Qt.ItemIsUserCheckable)
-            if soln.name in self.selectedSolutions:
+            if soln in self.selectedSolutions:
                 item.setCheckState(0, QtCore.Qt.Checked)
-                newSel.append(soln.name)
+                newSel.append(soln)
             else:
                 item.setCheckState(0, QtCore.Qt.Unchecked)
             item.solution = soln
@@ -172,7 +172,7 @@ class SolutionEditorWidget(QtGui.QWidget):
         reagentTree.clear()
         reagents = set()
         for soln in self.selectedSolutions:
-            reagents = reagents | set(soln.reagents.keys())
+            reagents = reagents | set(soln.reagentList())
         # check for unknown reagents
         allReagents = self.db.reagents.data['name']
         unknown = [r for r in reagents if r not in allReagents]
@@ -232,7 +232,7 @@ class ReagentItem(pg.TreeWidgetItem):
 
         self.name = name
         self.solutions = solutions
-        pg.TreeWidgetItem.__init__(self, [name] + ['%0.1f'%sol.reagents[name] if name in sol.reagents else '' for sol in solutions])
+        pg.TreeWidgetItem.__init__(self, [name] + ['%0.1f'%sol[name] if name in sol.reagentList() else '' for sol in solutions])
         self.setFlags(self.flags() | QtCore.Qt.ItemIsEditable)
 
     def createEditor(self, parent, option, col):
@@ -247,9 +247,9 @@ class ReagentItem(pg.TreeWidgetItem):
         sol = self.solutions[col-1]
         t = editor.text()
         if t == '':
-            sol.reagents.pop(self.name, None)
+            sol[self.name] = None
         else:
-            sol.reagents[self.name] = float(t)
+            sol[self.name] = float(t)
         self.setText(col, editor.text())
         self.sigChanged.emit(self)
 

@@ -1,4 +1,5 @@
 import re
+from collections import OrderedDict
 import acq4.pyqtgraph as pg
 from acq4.pyqtgraph.Qt import QtGui, QtCore
 from .core import RecipeSet, Recipe
@@ -87,7 +88,7 @@ class RecipeEditorWidget(QtGui.QWidget):
         showConc = self.ui.showConcentrationCheck.isChecked()
         grp = SolutionItemGroup(self.ui.recipeTable, self.recipeSet, recipe, self.db, showConc)
         grp.sigSolutionChanged.connect(self.solutionChanged)
-        grp.sigColumnCountChanged.connect(self.updateRecipeTable)
+        grp.sigRecipeChanged.connect(self.updateRecipeTable)
         return grp
     
     def solutionChanged(self, grp, soln):
@@ -124,7 +125,7 @@ class RecipeEditorWidget(QtGui.QWidget):
         solns = [r.solution for r in self.recipeSet]
         reagents = set()
         for soln in solns:
-            reagents |= set(soln.reagents.keys())
+            reagents |= set(soln.reagentList())
 
         # sort reagents
         reagentOrder = []
@@ -423,7 +424,7 @@ class TableWidgetItem(QtGui.QTableWidgetItem):
 
 
 class SolutionItemGroup(QtCore.QObject):
-    sigColumnCountChanged = QtCore.Signal(object)  # self
+    sigRecipeChanged = QtCore.Signal(object)  # self
     sigSolutionChanged = QtCore.Signal(object, object)  # self, soln
     
     def __init__(self, table, recipeSet, recipe, db, showConc=False):
@@ -433,6 +434,8 @@ class SolutionItemGroup(QtCore.QObject):
         self.recipe = recipe
         self.recipeSet = recipeSet
         self.showConc = showConc
+        
+        self.recipe.sigChanged.connect(lambda: self.sigRecipeChanged.emit(self))
         
     def columns(self):
         return len(self.recipe.volumes) + 1 + int(self.showConc)
@@ -447,14 +450,13 @@ class SolutionItemGroup(QtCore.QObject):
         self.table.setSpan(0, col, 1, self.columns())
         self.table.setItem(0, col, self.solutionItem)
         self.volumeItems = []
-        reagents = self.recipe.solution.reagents
         self.reagentItems = {r:[] for r in self.reagentOrder}
 
         if self.showConc:
-            header = TableWidgetItem('Conc.')
+            header = TableWidgetItem('mM')
             self.table.setItem(1, col, header)
             for row, reagent in enumerate(self.reagentOrder):
-                conc = self.recipe.solution.reagents.get(reagent, None)
+                conc = self.recipe.solution[reagent]
                 conc = '' if conc is None else '%0.1f' % conc
                 ritem = TableWidgetItem(conc)
                 self.table.setItem(row+2, col, ritem)
@@ -504,7 +506,7 @@ class SolutionItemGroup(QtCore.QObject):
         
     def addVolumeClicked(self):
         self.recipe.volumes.append(100)
-        self.sigColumnCountChanged.emit(self)
+        self.sigRecipeChanged.emit(self)
 
     def volumeChanged(self):
         vols = []
@@ -521,7 +523,7 @@ class SolutionItemGroup(QtCore.QObject):
 
         if len(vols) != self.recipe.volumes:
             self.recipe.volumes = vols
-            self.sigColumnCountChanged.emit(self)
+            self.sigRecipeChanged.emit(self)
         else:
             self.recipe.volumes = vols
             self.updateMasses()
@@ -550,18 +552,25 @@ class SolutionItem(TableWidgetItem):
         self.menu.clear()
         if self.removable:
             self.menu.addAction('[remove]', self.selectionChanged)
-        grp = None
+            
+        # sort all solutions into groups
+        grps = OrderedDict()
         for sol in solutions:
-            if sol.group != grp:
-                grp = sol.group
-                label = QtGui.QLabel(grp)
-                font = label.font()
-                font.setWeight(font.Bold)
-                label.setFont(font)
-                act = QtGui.QWidgetAction(self.menu)
-                act.setDefaultWidget(label)
-                self.menu.addAction(act)
-            self.menu.addAction("  " + sol.name, self.selectionChanged)
+            if sol.group not in grps:
+                grps[sol.group] = []
+            grps[sol.group].append(sol)
+            
+        # create group / solution entries
+        for grp, solns in grps.items():
+            label = QtGui.QLabel(grp)
+            font = label.font()
+            font.setWeight(font.Bold)
+            label.setFont(font)
+            act = QtGui.QWidgetAction(self.menu)
+            act.setDefaultWidget(label)
+            self.menu.addAction(act)
+            for soln in solns:
+                self.menu.addAction("  " + soln.name, self.selectionChanged)
             
     def selectionChanged(self):
         action = self.tableWidget().sender()

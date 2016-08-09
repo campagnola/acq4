@@ -138,7 +138,6 @@ class Solutions(QtCore.QObject):
         self.db = db
         QtCore.QObject.__init__(self)
         self._data = []
-        self.groups = []
 
     def add(self, soln=None, name=None, group=None):
         if soln is None:
@@ -217,7 +216,7 @@ class Solution(QtCore.QObject):
         self.group = group
         self.type = 'internal' if group is not None and 'internal' in group.lower() else 'external'
         self.compareAgainst = against
-        self.reagents = {}
+        self._reagents = {}
         
         # empirically determined values:
         self.ionConcentrations = {}
@@ -227,23 +226,31 @@ class Solution(QtCore.QObject):
         """Set the concentration of a particular reagent.
         """
         if concentration in (0,  None):
-            self.reagents.pop(name, None)
+            self._reagents.pop(name, None)
         else:
-            self.reagents[name] = concentration
+            self._reagents[name] = concentration
         self.sigSolutionChanged.emit(self)
         
-    def ___getitem__(self, name):
-        """Return the concentration of a reagent.
+    def __getitem__(self, name):
+        """Return the concentration of a reagent, or None if the solution does
+        not contain the reagent.
         """
-        return self.reagents[name]
+        return self._reagents.get(name, None)
+    
+    def reagentList(self):
+        return list(self._reagents.keys())
+    
+    @property
+    def reagents(self):
+        return self._reagents.copy()
     
     def save(self):
-        return {'name': self.name, 'group': self.group, 'reagents': self.reagents,
+        return {'name': self.name, 'group': self.group, 'reagents': self._reagents,
                 'type': self.type, 'compareAgainst': self.compareAgainst}
     
     def restore(self, state):
-        self.reagents.clear()
-        self.reagents.update(state['reagents'])
+        self._reagents.clear()
+        self._reagents.update(state['reagents'])
         self.name = state['name']
         self.group = state['group']
         self.type = state['type']
@@ -253,9 +260,9 @@ class Solution(QtCore.QObject):
         """Calculate ion concentrations and osmolarity.
         """
         reagents = self.db.reagents
-        knownReagents = [r for r in self.reagents.keys() if r in reagents.data['name']]
+        knownReagents = [r for r in self._reagents.keys() if r in reagents.data['name']]
         reagents = reagents[knownReagents]
-        concs = np.array([self.reagents[n] for n in reagents['name']])
+        concs = np.array([self._reagents[n] for n in reagents['name']])
         ions = {}
         for ion in IONS:
             ions[ion] = np.sum(reagents[ion] * concs)
@@ -291,16 +298,34 @@ def _loadRec(arr, rec):
             _loadRec(arr[field], rec[field])
         
 
-class Recipe(object):
+class Recipe(QtCore.QObject):
     """Defines a list of volumes for which reagent masses should be calculated
     for a particular solution.
     """
+    sigChanged = QtCore.Signal(object)  # self
     
     def __init__(self, solution=None, volumes=None, notes=None, db=None):
+        QtCore.QObject.__init__(self)
         self.db = db
-        self.solution = solution
+        self._solution = None
         self.volumes = [] if volumes is None else volumes
         self.notes = notes
+        if solution is not None:
+            self.setSolution(solution)
+            
+    @property
+    def solution(self):
+        return self._solution
+
+    def setSolution(self, sol):
+        if self._solution is not None:
+            self._solution.sigSolutionChanged.disconnect(self.solutionChanged)
+        self._solution = sol
+        sol.sigSolutionChanged.connect(self.solutionChanged)
+        self.solutionChanged()
+        
+    def solutionChanged(self):
+        self.sigChanged.emit(self)
 
     def save(self):
         return {'solution': self.solution.name, 'volumes': self.volumes, 'notes': self.notes}
@@ -308,13 +333,13 @@ class Recipe(object):
     def restore(self, state):
         self.notes = state['notes']
         self.volumes = state['volumes']
-        self.solution = self.db.solutions[state['solution']]
+        self.setSolution = self.db.solutions[state['solution']]
 
     def copy(self):
         r = Recipe()
         r.volumes = self.volumes[:]
         r.notes = self.notes
-        r.solution = self.solution
+        r.setSolution(self._solution)
         return r
 
 
