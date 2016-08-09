@@ -15,7 +15,9 @@ class SolutionEditorWidget(QtGui.QWidget):
         self.ui = Ui_solutionEditor()
         self.ui.setupUi(self)
         
-        self.ui.solutionList.setEditTriggers(QtGui.QAbstractItemView.EditKeyPressed)
+        self.ui.solutionList.setEditTriggers(QtGui.QAbstractItemView.EditKeyPressed | QtGui.QAbstractItemView.SelectedClicked)
+        self.ui.solutionList.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.ui.solutionList.customContextMenuRequested.connect(self.solutionMenuRequested)
 
         self.addGroupItem = HtmlItem('+ <a href="/">add group</a>')
         self.ui.solutionList.addTopLevelItem(self.addGroupItem)
@@ -78,6 +80,14 @@ class SolutionEditorWidget(QtGui.QWidget):
         self.ui.solutionTable.itemClicked.connect(self.itemClicked)
         self.ui.solutionTable.resizeColumnToContents(0)
 
+        self.db.solutions.solutionListChanged.connect(self.updateSolutionList)
+
+        self.updateSolutionList()
+
+    def solutionMenuRequested(self, point):
+        item = self.ui.solutionList.itemAt(point)
+        item.showContextMenu(point)
+
     def selectionChanged(self):
         selection = self.ui.solutionTable.selectionModel().selection().indexes()
         if len(selection) != 1:
@@ -99,7 +109,7 @@ class SolutionEditorWidget(QtGui.QWidget):
         
         grpItems = {}
         for soln in self.db.solutions:
-            item = pg.TreeWidgetItem([soln.name])
+            item = SolutionItem(soln)
             item.setFlags(QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsDragEnabled | QtCore.Qt.ItemIsEditable | QtCore.Qt.ItemIsUserCheckable)
             if soln in self.selectedSolutions:
                 item.setCheckState(0, QtCore.Qt.Checked)
@@ -112,9 +122,27 @@ class SolutionEditorWidget(QtGui.QWidget):
                 grpItems[group] = self.addGroup(group)
             grpItem = grpItems[group]
             grpItem.addChild(item)
+            
+            item.sigCopyClicked.connect(self.copySolution)
+            item.sigRemoveClicked.connect(self.removeSolution)
 
         self.selectedSolutions = newSel
         self.reverseAgainstItem.setAllSolutions(self.db.solutions)
+
+    def copySolution(self, item):
+        soln = item.solution.copy()
+        names = [s.name for s in self.db.solutions]
+        i = 0
+        while True:
+            name = soln.name + '_%d' % i
+            if name not in names:
+                break
+            i += 1
+        soln.name = name
+        self.db.solutions.add(soln)
+        
+    def removeSolution(self, item):
+        self.db.solutions.remove(item.solution)
 
     def addGroup(self, name):
         item = GroupItem(name, adder='add solution', editable=True, checkable=True)
@@ -153,7 +181,6 @@ class SolutionEditorWidget(QtGui.QWidget):
             except NameError:
                 name = basename + '%d'%count
                 count += 1
-        self.updateSolutionList()
         
     def showReagentsClicked(self, item, name):
         if self.showAllReagents:
@@ -252,6 +279,34 @@ class ReagentItem(pg.TreeWidgetItem):
             sol[self.name] = float(t)
         self.setText(col, editor.text())
         self.sigChanged.emit(self)
+
+
+class SolutionItem(pg.TreeWidgetItem):
+    def __init__(self, soln):
+        class SigProxy(QtCore.QObject):
+            sigCopyClicked = QtCore.Signal(object)
+            sigRemoveClicked = QtCore.Signal(object)
+        self.__sigprox = SigProxy()
+        self.sigCopyClicked = self.__sigprox.sigCopyClicked
+        self.sigRemoveClicked = self.__sigprox.sigRemoveClicked
+
+        self.solution = soln
+        pg.TreeWidgetItem.__init__(self, [soln.name])
+        self.menu = QtGui.QMenu()
+        self.menu.addAction('Copy', self.copyClicked)
+        self.menu.addAction('Remove', self.removeClicked)
+        
+    def showContextMenu(self, point):
+        tree = self.treeWidget()
+        point = point + QtCore.QPoint(0, tree.header().height())
+        pt = tree.mapToGlobal(point)
+        self.menu.popup(pt)
+        
+    def copyClicked(self):
+        self.sigCopyClicked.emit(self)
+        
+    def removeClicked(self):
+        self.sigRemoveClicked.emit(self)
 
 
 class SolutionTypeItem(pg.TreeWidgetItem):

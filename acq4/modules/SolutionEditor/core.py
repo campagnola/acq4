@@ -149,6 +149,10 @@ class Solutions(QtCore.QObject):
         self._data.append(soln)
         self.solutionListChanged.emit(self)
     
+    def remove(self, soln):
+        self._data.remove(soln)
+        self.solutionListChanged.emit(self)
+    
     def __getitem__(self, name):
         for sol in self._data:
             if sol.name == name:
@@ -243,9 +247,14 @@ class Solution(QtCore.QObject):
     @property
     def reagents(self):
         return self._reagents.copy()
+
+    def copy(self):
+        soln = Solution()
+        soln.restore(self.save())
+        return soln
     
     def save(self):
-        return {'name': self.name, 'group': self.group, 'reagents': self._reagents,
+        return {'name': self.name, 'group': self.group, 'reagents': self._reagents.copy(),
                 'type': self.type, 'compareAgainst': self.compareAgainst}
     
     def restore(self, state):

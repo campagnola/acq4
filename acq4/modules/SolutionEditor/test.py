@@ -58,6 +58,6 @@ w = SolutionEditorWindow(db=db)
 w.show()
 
 
-w.solutionEditor.updateSolutionList()
-w.tabs.setCurrentIndex(2)
+#w.solutionEditor.updateSolutionList()
+#w.tabs.setCurrentIndex(2)
 
