@@ -147,6 +147,14 @@ class Solutions(QtCore.QObject):
             if s.name == soln.name:
                 raise NameError("Solution with this name already exists.")
         self._data.append(soln)
+        soln.sigRenamed.connect(self.solutionRenamed)
+        self.solutionListChanged.emit(self)
+    
+    def solutionRenamed(self, soln, old):
+        new = soln.name
+        for soln in self._data:
+            if soln.compareAgainst == old:
+                soln.compareAgainst = new
         self.solutionListChanged.emit(self)
     
     def remove(self, soln):
@@ -212,12 +220,14 @@ class Solution(QtCore.QObject):
     """Defines the list of reagents and their concentrations in a solution.
     """
     sigSolutionChanged = QtCore.Signal(object)  # self
+    sigRenamed = QtCore.Signal(object, object)  # self, old_name
     
     def __init__(self, name=None, group=None, against=None, db=None):
         QtCore.QObject.__init__(self)
         self.db = db
-        self.name = name
+        self._name = name
         self.group = group
+        self.notes = ''
         self.type = 'internal' if group is not None and 'internal' in group.lower() else 'external'
         self.compareAgainst = against
         self._reagents = {}
@@ -225,6 +235,15 @@ class Solution(QtCore.QObject):
         # empirically determined values:
         self.ionConcentrations = {}
         self.osmolarity = None
+        
+    @property
+    def name(self):
+        return self._name
+    
+    def setName(self, name):
+        old = self._name
+        self._name = name
+        self.sigRenamed.emit(self, old)
         
     def __setitem__(self, name, concentration):
         """Set the concentration of a particular reagent.
@@ -255,15 +274,17 @@ class Solution(QtCore.QObject):
     
     def save(self):
         return {'name': self.name, 'group': self.group, 'reagents': self._reagents.copy(),
-                'type': self.type, 'compareAgainst': self.compareAgainst}
+                'type': self.type, 'compareAgainst': self.compareAgainst, 'notes': self.notes}
     
     def restore(self, state):
         self._reagents.clear()
         self._reagents.update(state['reagents'])
-        self.name = state['name']
         self.group = state['group']
         self.type = state['type']
         self.compareAgainst = state['compareAgainst']
+        self.notes = state['notes']
+        self.setName(state['name'])
+        self.sigSolutionChanged.emit(self)
 
     def recalculate(self):
         """Calculate ion concentrations and osmolarity.

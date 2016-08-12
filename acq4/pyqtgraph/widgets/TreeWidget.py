@@ -43,7 +43,7 @@ class TreeWidget(QtGui.QTreeWidget):
 
     def itemWidget(self, item, col):
         w = QtGui.QTreeWidget.itemWidget(self, item, col)
-        if w is not None:
+        if w is not None and hasattr(w, 'realChild'):
             w = w.realChild
         return w
 

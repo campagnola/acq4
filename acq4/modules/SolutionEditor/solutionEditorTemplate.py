@@ -48,7 +48,7 @@ class Ui_solutionEditor(object):
         self.label = QtGui.QLabel(self.layoutWidget)
         self.label.setObjectName(_fromUtf8("label"))
         self.verticalLayout.addWidget(self.label)
-        self.notesText = QtGui.QPlainTextEdit(self.layoutWidget)
+        self.notesText = RichTextEdit(self.layoutWidget)
         self.notesText.setObjectName(_fromUtf8("notesText"))
         self.verticalLayout.addWidget(self.notesText)
         self.layoutWidget1 = QtGui.QWidget(self.splitter_2)
@@ -109,4 +109,5 @@ class Ui_solutionEditor(object):
         self.label_4.setText(_translate("solutionEditor", "Reversal temperature", None))
         self.reverseTempSpin.setSuffix(_translate("solutionEditor", "C", None))
 
+from .textEditor import RichTextEdit
 from acq4.pyqtgraph import TreeWidget

@@ -65,7 +65,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QPlainTextEdit" name="notesText"/>
+         <widget class="RichTextEdit" name="notesText"/>
         </item>
        </layout>
       </widget>
@@ -161,6 +161,11 @@
    <class>TreeWidget</class>
    <extends>QTreeWidget</extends>
    <header>acq4.pyqtgraph</header>
+  </customwidget>
+  <customwidget>
+   <class>RichTextEdit</class>
+   <extends>QTextEdit</extends>
+   <header>.textEditor</header>
   </customwidget>
  </customwidgets>
  <resources/>

@@ -72,9 +72,11 @@ class SolutionEditorWidget(QtGui.QWidget):
         self.ui.splitter.setStretchFactor(1, 1)
         self.ui.solutionList.sigItemTextChanged.connect(self.solutionListTextChanged)
         self.ui.solutionList.sigItemCheckStateChanged.connect(self.solutionListCheckStateChanged)
+        self.ui.solutionList.itemSelectionChanged.connect(self.solutionListSelectionChanged)
         self.ui.reverseTempSpin.valueChanged.connect(self.updateSolutionTree)
         self.solutionTypeItem.sigChanged.connect(self.recalculate)
         self.reverseAgainstItem.sigChanged.connect(self.recalculate)
+        self.ui.notesText.textChanged.connect(self.notesTextChanged)
 
         self.ui.solutionTable.itemSelectionChanged.connect(self.selectionChanged)
         self.ui.solutionTable.itemClicked.connect(self.itemClicked)
@@ -88,6 +90,25 @@ class SolutionEditorWidget(QtGui.QWidget):
         item = self.ui.solutionList.itemAt(point)
         item.showContextMenu(point)
 
+    def solutionListSelectionChanged(self):
+        items = self.ui.solutionList.selectedItems()
+        self.ui.notesText.textChanged.disconnect(self.notesTextChanged)
+        try:
+            if len(items) == 0 or not isinstance(items[0], SolutionItem):
+                self.ui.notesText.clear()
+            else:
+                soln = items[0].solution
+                self.ui.notesText.setHtml(soln.notes)
+        finally:
+            self.ui.notesText.textChanged.connect(self.notesTextChanged)
+
+    def notesTextChanged(self):
+        items = self.ui.solutionList.selectedItems()
+        if len(items) == 0:
+            return
+        item = items[0]
+        item.solution.notes = unicode(self.ui.notesText.toHtml())
+        
     def selectionChanged(self):
         selection = self.ui.solutionTable.selectionModel().selection().indexes()
         if len(selection) != 1:
@@ -101,8 +122,9 @@ class SolutionEditorWidget(QtGui.QWidget):
             item.itemClicked(col)
 
     def updateSolutionList(self):
-        newSel = []
         slist = self.ui.solutionList
+        vpos = slist.verticalScrollBar().value()
+        newSel = []
         for item in slist.topLevelItems():
             if item is not self.addGroupItem:
                 slist.removeTopLevelItem(item)
@@ -126,6 +148,7 @@ class SolutionEditorWidget(QtGui.QWidget):
             item.sigCopyClicked.connect(self.copySolution)
             item.sigRemoveClicked.connect(self.removeSolution)
 
+        slist.verticalScrollBar().setValue(vpos)
         self.selectedSolutions = newSel
         self.reverseAgainstItem.setAllSolutions(self.db.solutions)
 
@@ -168,7 +191,13 @@ class SolutionEditorWidget(QtGui.QWidget):
             for child in item.childItems():
                 child.solution.group = str(item.text(0))
         else:
-            item.solution.name = str(item.text(0))
+            new = str(item.text(0))
+            # Note: disconnect here prevents a segfault. Something to do with
+            # removing an item during its own edit callback.
+            self.db.solutions.solutionListChanged.disconnect(self.updateSolutionList)
+            item.solution.setName(new)
+            self.db.solutions.solutionListChanged.connect(self.updateSolutionList)
+            self.updateSolutionTree()
             
     def addSolutionClicked(self, item):
         basename = 'New Solution'
@@ -191,8 +220,10 @@ class SolutionEditorWidget(QtGui.QWidget):
         self.updateSolutionTree()
 
     def updateSolutionTree(self):
-        self.ui.solutionTable.setColumnCount(len(self.selectedSolutions) + 1)
-        self.ui.solutionTable.setHeaderLabels([''] + [s.name for s in self.selectedSolutions])
+        table = self.ui.solutionTable
+        vpos = table.verticalScrollBar().value()
+        table.setColumnCount(len(self.selectedSolutions) + 1)
+        table.setHeaderLabels([''] + [s.name for s in self.selectedSolutions])
         
         # collect a list of all reagents in all selected solutions
         reagentTree = self.solnTreeItems['Concentrations (mM)']
@@ -234,7 +265,9 @@ class SolutionEditorWidget(QtGui.QWidget):
 
         # resize columns
         for i in range(len(self.selectedSolutions)+1):
-            self.ui.solutionTable.resizeColumnToContents(i)
+            table.resizeColumnToContents(i)
+
+        table.verticalScrollBar().setValue(vpos)
 
     def recalculate(self):
         results = self.db.solutions.recalculate(self.selectedSolutions, self.ui.reverseTempSpin.value())
