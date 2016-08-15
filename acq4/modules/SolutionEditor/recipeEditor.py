@@ -353,7 +353,7 @@ class RecipeEditorWidget(QtGui.QWidget):
                         a = w.alignment()
                         if a & QtCore.Qt.AlignRight > 0:
                             align = 'right'
-                        elif a & QtCore.Qt.AlignLeftt > 0:
+                        elif a & QtCore.Qt.AlignLeft > 0:
                             align = 'left'
                         elif a & QtCore.Qt.AlignCenter > 0:
                             align = 'center'
