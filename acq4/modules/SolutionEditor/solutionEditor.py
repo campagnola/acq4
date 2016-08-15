@@ -161,7 +161,7 @@ class SolutionEditorWidget(QtGui.QWidget):
             if name not in names:
                 break
             i += 1
-        soln.name = name
+        soln.setName(name)
         self.db.solutions.add(soln)
         
     def removeSolution(self, item):
