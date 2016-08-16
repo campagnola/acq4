@@ -363,7 +363,7 @@ class Recipe(QtCore.QObject):
     def restore(self, state):
         self.notes = state['notes']
         self.volumes = state['volumes']
-        self.setSolution = self.db.solutions[state['solution']]
+        self.setSolution(self.db.solutions[state['solution']])
 
     def copy(self):
         r = Recipe()
