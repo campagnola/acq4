@@ -72,61 +72,106 @@ class Reagents(QtCore.QObject):
             ('osmolarity', float),
         ] + [(ion, float) for ion in IONS] + [('notes', object)]
         self._null = (None, None, None, 0, 0, 0) + (0,)*len(IONS) + (None,)
-        self.data = np.empty(len(DEFAULT_REAGENTS), dtype=self._dtype)
+        self._data = np.empty(len(DEFAULT_REAGENTS), dtype=self._dtype)
         for i, reagent in enumerate(DEFAULT_REAGENTS):
-            self.data[i] = reagent + (0,)*(len(self._dtype)-len(reagent))
+            self._data[i] = reagent + (0,)*(len(self._dtype)-len(reagent))
 
     def add(self, **kwds):
-        assert kwds['name'] not in self.data['name'], 'Reagent with this name already exists.'
-        self.data = np.resize(self.data, len(self.data)+1)
-        self.data[-1] = self._null
+        assert kwds['name'] not in self._data['name'], 'Reagent with this name already exists.'
+        self._data = np.resize(self.data, len(self._data)+1)
+        self._data[-1] = self._null
         #if 'ions' in kwds:
             #for k,v in kwds.pop('ions').items():
                 #self.data[-1]['ions'][k] = v
         for k,v in kwds.items():
-            self.data[-1][k] = v
+            self._data[-1][k] = v
         
         self.sigReagentListChanged.emit(self)
 
     def remove(self, name):
         try:
-            i = np.argwhere(self.data['name'] == name)[0, 0]
+            i = np.argwhere(self._data['name'] == name)[0, 0]
         except IndexError:
             raise KeyError('No reagent named "%s"' % name)
-        mask = np.ones(len(self.data), dtype=bool)
+        mask = np.ones(len(self._data), dtype=bool)
         mask[i] = False
-        self.data = self.data[mask]
+        self._data = self._data[mask]
 
         self.sigReagentListChanged.emit(self)
 
     def save(self):
-        return _saveArray(self.data)
+        return _saveArray(self._data)
     
     def restore(self, data):
-        self.data = _loadArray(data, self._dtype)
+        self._data = _loadArray(data, self._dtype)
 
     def groups(self):
-        return np.unique(self.data['group'])
-
-    def __getitem__(self, names):
-        if isinstance(names, basestring):
-            names = [names]
-            returnone = True
-        else:
-            returnone = False
+        return np.unique(self._data['group'])
+    
+    def names(self):
+        return self._data['name'].copy()
+    
+    def rename(self, n1, n2):
+        if n1 == n2:
+            return
+        if n2 in self._data['names']:
+            raise NameError("A reagent named '%s' already exists." % n2)
+        ind = self._getIndex(n1)
+        self._data[ind]['name'] = n2
+        self.sigReagentListChanged.emit(self)
         
+    def setData(self, name, item, value):
+        ind = self._getIndex(name)
+        self._data[ind][item] = value
+        self.sigReagentDataChanged.emit(self)
+
+    def __getitem__(self, name):
+        if name not in self._data['name']:
+            raise NameError("No reagent named '%s'" % name)
+        return Reagent(self, name)
+    
+    def __iter__(self):
+        for name in self._data['name']:
+            yield self[name]
+    
+    def getRecArray(self, names):
         inds = []
         for n in names:
-            r = np.argwhere(self.data['name'] == n)[:,0]
+            r = np.argwhere(self._data['name'] == n)[:,0]
             if r.shape[0] == 0:
                 continue
             inds.append(int(r[0]))
 
-        if returnone:
-            return self.data[inds[0]]
-        else:
-            return self.data[inds]
+        return self._data[inds]
+    
+    def _getIndex(self, reagent):
+        r = np.argwhere(self._data['name'] == reagent)[:,0]
+        if r.shape[0] == 0:
+            raise NameError('No reagent named "%s".' % reagent)
+        return r[0]
+        
 
+class Reagent(object):
+    def __init__(self, reagents, name):
+        self.reagents = reagents
+        self.name = name
+        
+    def __setitem__(self, item, val):
+        if item == 'name':
+            self.reagents.rename(self.name, val)
+            self.name = val
+        else:
+            self.reagents.setData(self.name, item, val)
+
+    def __getitem__(self, item):
+        ind = self.reagents._getIndex(self.name)
+        return self.reagents._data[ind][item]
+
+    @property
+    def fields(self):
+        dtype = self.reagents._data.dtype
+        return OrderedDict([(n, dtype[n]) for n in dtype.names])
+    
 
 class Solutions(QtCore.QObject):
     """Collection of grouped Solutions.
@@ -290,8 +335,9 @@ class Solution(QtCore.QObject):
         """Calculate ion concentrations and osmolarity.
         """
         reagents = self.db.reagents
-        knownReagents = [r for r in self._reagents.keys() if r in reagents.data['name']]
-        reagents = reagents[knownReagents]
+        allReagents = reagents.names()
+        knownReagents = [r for r in self._reagents.keys() if r in allReagents]
+        reagents = reagents.getRecArray(knownReagents)
         concs = np.array([self._reagents[n] for n in reagents['name']])
         ions = {}
         for ion in IONS:

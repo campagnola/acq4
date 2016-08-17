@@ -83,6 +83,8 @@ class SolutionEditorWidget(QtGui.QWidget):
         self.ui.solutionTable.resizeColumnToContents(0)
 
         self.db.solutions.solutionListChanged.connect(self.updateSolutionList)
+        self.db.reagents.sigReagentListChanged.connect(self.updateSolutionTree)
+        self.db.reagents.sigReagentDataChanged.connect(self.updateSolutionTree)
 
         self.updateSolutionList()
 
@@ -232,7 +234,7 @@ class SolutionEditorWidget(QtGui.QWidget):
         for soln in self.selectedSolutions:
             reagents = reagents | set(soln.reagentList())
         # check for unknown reagents
-        allReagents = self.db.reagents.data['name']
+        allReagents = self.db.reagents.names()
         unknown = [r for r in reagents if r not in allReagents]
         # sort
         if self.showAllReagents:

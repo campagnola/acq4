@@ -61,5 +61,5 @@ w.show()
 
 
 #w.solutionEditor.updateSolutionList()
-#w.tabs.setCurrentIndex(2)
+w.tabs.setCurrentIndex(0)
 

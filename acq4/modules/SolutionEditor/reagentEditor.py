@@ -48,7 +48,7 @@ class ReagentEditorWidget(QtGui.QWidget):
         newGroups = self.reagents.groups()
         tree.clear()
         grpItems = {}
-        for reagent in self.reagents.data:
+        for reagent in self.reagents:
             item = ReagentItem(reagent)
             group = reagent['group']
             if group not in grpItems:
@@ -74,23 +74,29 @@ class ReagentItem(QtGui.QTreeWidgetItem):
         self.sigChanged = self._sigprox.sigChanged
 
         self.reagent = reagent
-        strs = [str(reagent[f]) for f in reagent.dtype.names if f != 'group']
-        self.fields = strs
+        fields = reagent.fields
+        self.fields = OrderedDict([(f,fields[f]) for f in fields if f != 'group'])
+        
+        strs = [str(reagent[f]) for f in self.fields]
         QtGui.QTreeWidgetItem.__init__(self, strs)
         self.setFlags(self.flags() | QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable | QtCore.Qt.ItemIsSelectable)
 
     def createEditor(self, parent, option, col):
-        if col == 0:
-            return None
         return QtGui.QLineEdit(parent)
     
     def setEditorData(self, editor, col):
         editor.setText(self.text(col))
     
     def setModelData(self, editor, model, col):
-        t = editor.text()
-        self.setText(col, editor.text())
-        field = self.fields[col]
-        self.reagent
+        fname, ftype = self.fields.items()[col]
+
+        # string / float types need to be handled differently
+        if ftype.kind in 'uif':
+            v = float(editor.text())
+            self.setText(col, '%0.2f'%v)
+        else:
+            v = str(editor.text())
+            self.setText(col, v)
+        self.reagent[fname] = v
         self.sigChanged.emit(self)
 

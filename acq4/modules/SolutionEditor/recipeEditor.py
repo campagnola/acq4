@@ -46,6 +46,7 @@ class RecipeEditorWidget(QtGui.QWidget):
         
         self.db.solutions.solutionListChanged.connect(self.solutionsChanged)
         self.db.recipes.sigRecipeSetListChanged.connect(self.updateRecipeSetList)
+        self.db.reagents.sigReagentDataChanged.connect(self.updateRecipeTable)
         self.ui.recipeTable.cellClicked.connect(self.cellClicked)
         self.ui.recipeTable.cellChanged.connect(self.cellChanged)
         self.ui.showMWCheck.clicked.connect(self.updateRecipeTable)
@@ -130,9 +131,10 @@ class RecipeEditorWidget(QtGui.QWidget):
 
         # sort reagents
         reagentOrder = []
-        for rec in self.db.reagents.data:
-            if rec['name'] in reagents:
-                reagentOrder.append(rec['name'])
+        allReagents = self.db.reagents.names()
+        for name in allReagents:
+            if name in reagents:
+                reagentOrder.append(name)
         
         for sg in self.solutionGroups:
             sg.reagentOrder = reagentOrder
