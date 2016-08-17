@@ -35,8 +35,16 @@ class ReagentEditorWidget(QtGui.QWidget):
         if item.flags() & QtCore.Qt.ItemIsEditable == QtCore.Qt.ItemIsEditable:
             tree.editItem(item, col)
 
-    def addReagent(self, *args):
-        print args
+    def addReagent(self, item):
+        names = self.db.reagents.names()
+        i = 0
+        while True:
+            name = 'new_reagent_%d' % i
+            if name not in names:
+                break
+            i += 1
+        self.db.reagents.add(name=name, group=item.text(0))
+        self.updateReagentList()
 
     def updateReagentList(self):
         tree = self.ui.reagentTree

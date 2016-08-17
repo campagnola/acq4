@@ -110,11 +110,20 @@ class Reagents(QtCore.QObject):
     
     def names(self):
         return self._data['name'].copy()
+
+    def add(self, name, group, **kwds):
+        data = np.empty(len(self._data)+1, dtype=self._dtype)
+        data[:-1] = self._data
+        data[-1]['name'] = name
+        data[-1]['group'] = group
+        for k,v in kwds.items():
+            data[-1][k] = v
+        self._data = data
     
     def rename(self, n1, n2):
         if n1 == n2:
             return
-        if n2 in self._data['names']:
+        if n2 in self._data['name']:
             raise NameError("A reagent named '%s' already exists." % n2)
         ind = self._getIndex(n1)
         self._data[ind]['name'] = n2
