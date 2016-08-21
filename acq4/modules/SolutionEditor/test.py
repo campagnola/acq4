@@ -63,3 +63,4 @@ w.show()
 #w.solutionEditor.updateSolutionList()
 w.tabs.setCurrentIndex(0)
 
+QtGui.QApplication.instance().exec_()

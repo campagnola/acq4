@@ -69,24 +69,12 @@ class Reagents(QtCore.QObject):
             ('name', object),
             ('formula', object),
             ('molweight', float),
-            ('osmolarity', float),
+            ('osmconst', float),
         ] + [(ion, float) for ion in IONS] + [('notes', object)]
         self._null = (None, None, None, 0, 0, 0) + (0,)*len(IONS) + (None,)
         self._data = np.empty(len(DEFAULT_REAGENTS), dtype=self._dtype)
         for i, reagent in enumerate(DEFAULT_REAGENTS):
             self._data[i] = reagent + (0,)*(len(self._dtype)-len(reagent))
-
-    def add(self, **kwds):
-        assert kwds['name'] not in self._data['name'], 'Reagent with this name already exists.'
-        self._data = np.resize(self.data, len(self._data)+1)
-        self._data[-1] = self._null
-        #if 'ions' in kwds:
-            #for k,v in kwds.pop('ions').items():
-                #self.data[-1]['ions'][k] = v
-        for k,v in kwds.items():
-            self._data[-1][k] = v
-        
-        self.sigReagentListChanged.emit(self)
 
     def remove(self, name):
         try:
@@ -119,6 +107,8 @@ class Reagents(QtCore.QObject):
         for k,v in kwds.items():
             data[-1][k] = v
         self._data = data
+        
+        self.sigReagentListChanged.emit(self)
     
     def rename(self, n1, n2):
         if n1 == n2:
@@ -352,7 +342,7 @@ class Solution(QtCore.QObject):
         for ion in IONS:
             ions[ion] = np.sum(reagents[ion] * concs)
         
-        osm = np.sum(concs * reagents['osmolarity'])
+        osm = np.sum(concs * reagents['osmconst'])
         return ions, osm
 
 

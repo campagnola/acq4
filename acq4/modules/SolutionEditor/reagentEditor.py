@@ -51,10 +51,20 @@ class ReagentEditorWidget(QtGui.QWidget):
         vpos = tree.verticalScrollBar().value()
         hpos = tree.horizontalScrollBar().value()
         
-        items = [tree.topLevelItem(i) for i in range(tree.topLevelItemCount())]
-        oldGroups = OrderedDict([(item.text(0), item) for item in items])
-        newGroups = self.reagents.groups()
+        #items = [tree.topLevelItem(i) for i in range(tree.topLevelItemCount())]
+        #oldGroups = OrderedDict([(item.text(0), item) for item in items])
+        #newGroups = self.reagents.groups()
         tree.clear()
+
+        colNames = {
+            'name': 'Reagent',
+            'formula': 'Formula',
+            'molweight': 'MW (g/mol)',
+            'osmconst': 'Osmotic const.',
+        }
+        cols = [colNames.get(f[0], f[0]) for f in self.db.reagents._dtype if f[0] not in ('group', 'notes')]
+        tree.setHeaderLabels(cols)
+        
         grpItems = {}
         for reagent in self.reagents:
             item = ReagentItem(reagent)
