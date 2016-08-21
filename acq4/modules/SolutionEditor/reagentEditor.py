@@ -12,6 +12,8 @@ class ReagentEditorWidget(QtGui.QWidget):
         QtGui.QWidget.__init__(self, parent)
         self.ui = Ui_reagentEditor()
         self.ui.setupUi(self)
+        self.ui.splitter.setStretchFactor(0, 4)
+        self.ui.splitter.setStretchFactor(1, 1)
 
         tree = self.ui.reagentTree
         tree.setSelectionBehavior(QtGui.QAbstractItemView.SelectItems)

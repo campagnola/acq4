@@ -71,7 +71,7 @@ class Reagents(QtCore.QObject):
             ('molweight', float),
             ('osmconst', float),
         ] + [(ion, float) for ion in IONS] + [('notes', object)]
-        self._null = (None, None, None, 0, 0, 0) + (0,)*len(IONS) + (None,)
+        self._null = (None, None, '', 0, 0) + (0,)*len(IONS) + (None,)
         self._data = np.empty(len(DEFAULT_REAGENTS), dtype=self._dtype)
         for i, reagent in enumerate(DEFAULT_REAGENTS):
             self._data[i] = reagent + (0,)*(len(self._dtype)-len(reagent))
@@ -100,12 +100,20 @@ class Reagents(QtCore.QObject):
         return self._data['name'].copy()
 
     def add(self, name, group, **kwds):
+        pos = np.argwhere(self._data['group'] == group)
+        if len(pos) == 0:
+            pos = len(self._data)
+        else:
+            pos = pos[-1, 0] + 1
+        
         data = np.empty(len(self._data)+1, dtype=self._dtype)
-        data[:-1] = self._data
-        data[-1]['name'] = name
-        data[-1]['group'] = group
+        data[:pos] = self._data[:pos]
+        data[pos+1:] = self._data[pos:]
+        data[pos] = self._null
+        data[pos]['name'] = name
+        data[pos]['group'] = group
         for k,v in kwds.items():
-            data[-1][k] = v
+            data[pos][k] = v
         self._data = data
         
         self.sigReagentListChanged.emit(self)

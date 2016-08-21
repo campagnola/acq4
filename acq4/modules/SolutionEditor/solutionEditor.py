@@ -239,20 +239,38 @@ class SolutionEditorWidget(QtGui.QWidget):
         # sort
         if self.showAllReagents:
             reagents = list(allReagents) + unknown
+            showGroups = True
         else:
             reagents = [x for x in allReagents if x in reagents] + unknown
+            showGroups = False
         
         # update reagent list
         self.reagentItems = {}
+        grpItems = {}
         for reagent in reagents:
             #concs = ['%0.1f'%soln.reagents[reagent] if reagent in soln.reagents else '' for soln in self.selectedSolutions]
             #item = QtGui.QTreeWidgetItem([reagent] + concs)
             item = ReagentItem(reagent, self.selectedSolutions)
-            reagentTree.addChild(item)
             item.sigChanged.connect(self.recalculate)
             self.reagentItems[reagent] = item
             if reagent in unknown:
                 item.setForeground(0, QtGui.QColor(200, 0, 0))
+                
+            if showGroups:
+                if reagent in unknown:
+                    grp = 'Unknown reagents'
+                else:
+                    grp = self.db.reagents[reagent]['group']
+                if grp in grpItems:
+                    grpItems[grp].addChild(item)
+                else:
+                    grpItem = QtGui.QTreeWidgetItem([grp])
+                    reagentTree.addChild(grpItem)
+                    grpItems[grp] = grpItem
+                    grpItem.addChild(item)
+                    grpItem.setExpanded(True)
+            else:
+                reagentTree.addChild(item)
 
         # Set measured ion concentration values
         # (todo)
