@@ -71,10 +71,10 @@ class Reagents(QtCore.QObject):
             ('molweight', float),
             ('osmconst', float),
         ] + [(ion, float) for ion in IONS] + [('notes', object)]
-        self._null = (None, None, '', 0, 0) + (0,)*len(IONS) + (None,)
+        self._null = (None, None, '', 0, 0) + (0,)*len(IONS) + ('',)
         self._data = np.empty(len(DEFAULT_REAGENTS), dtype=self._dtype)
         for i, reagent in enumerate(DEFAULT_REAGENTS):
-            self._data[i] = reagent + (0,)*(len(self._dtype)-len(reagent))
+            self._data[i] = reagent + self._null[len(reagent):]
 
     def remove(self, name):
         try:

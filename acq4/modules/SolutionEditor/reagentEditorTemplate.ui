@@ -312,7 +312,7 @@
        </property>
       </item>
      </widget>
-     <widget class="QTextEdit" name="reagentNotes"/>
+     <widget class="RichTextEdit" name="reagentNotes"/>
     </widget>
    </item>
   </layout>
@@ -322,6 +322,11 @@
    <class>TreeWidget</class>
    <extends>QTreeWidget</extends>
    <header>acq4.pyqtgraph</header>
+  </customwidget>
+  <customwidget>
+   <class>RichTextEdit</class>
+   <extends>QTextEdit</extends>
+   <header>.textEditor</header>
   </customwidget>
  </customwidgets>
  <resources/>

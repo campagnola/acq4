@@ -40,7 +40,7 @@ class Ui_reagentEditor(object):
         item_0 = QtGui.QTreeWidgetItem(self.reagentTree)
         item_0 = QtGui.QTreeWidgetItem(self.reagentTree)
         item_0 = QtGui.QTreeWidgetItem(self.reagentTree)
-        self.reagentNotes = QtGui.QTextEdit(self.splitter)
+        self.reagentNotes = RichTextEdit(self.splitter)
         self.reagentNotes.setObjectName(_fromUtf8("reagentNotes"))
         self.gridLayout.addWidget(self.splitter, 0, 0, 1, 1)
 
@@ -71,4 +71,5 @@ class Ui_reagentEditor(object):
         self.reagentTree.topLevelItem(5).setText(0, _translate("reagentEditor", "Markers", None))
         self.reagentTree.setSortingEnabled(__sortingEnabled)
 
+from .textEditor import RichTextEdit
 from acq4.pyqtgraph import TreeWidget

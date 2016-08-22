@@ -20,7 +20,7 @@ class ReagentEditorWidget(QtGui.QWidget):
         self.itemDelegate = ItemDelegate(tree)  # allow items to specify their own editors
         #tree.itemClicked.connect(self.itemClicked)
         tree.itemSelectionChanged.connect(self.selectionChanged)
-
+        self.ui.reagentNotes.textChanged.connect(self.notesChanged)
         self.updateReagentList()
         
     #def itemClicked(self, item, col):
@@ -36,6 +36,18 @@ class ReagentEditorWidget(QtGui.QWidget):
         item, col = tree.itemFromIndex(selection[0])
         if item.flags() & QtCore.Qt.ItemIsEditable == QtCore.Qt.ItemIsEditable:
             tree.editItem(item, col)
+            
+        if isinstance(item, ReagentItem):
+            self.ui.reagentNotes.setHtml(item.reagent['notes'])
+        else:
+            self.ui.reagentNotes.setHtml("")
+
+    def notesChanged(self):
+        items = self.ui.reagentTree.selectedItems()
+        if len(items) == 0:
+            return
+        item = items[0]
+        item.reagent['notes'] = unicode(self.ui.reagentNotes.toHtml())
 
     def addReagent(self, item):
         names = self.db.reagents.names()
