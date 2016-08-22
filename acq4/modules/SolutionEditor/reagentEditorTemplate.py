@@ -33,6 +33,7 @@ class Ui_reagentEditor(object):
         self.splitter.setObjectName(_fromUtf8("splitter"))
         self.reagentTree = TreeWidget(self.splitter)
         self.reagentTree.setAlternatingRowColors(True)
+        self.reagentTree.setVerticalScrollMode(QtGui.QAbstractItemView.ScrollPerPixel)
         self.reagentTree.setObjectName(_fromUtf8("reagentTree"))
         item_0 = QtGui.QTreeWidgetItem(self.reagentTree)
         item_0 = QtGui.QTreeWidgetItem(self.reagentTree)

@@ -65,6 +65,9 @@
       <enum>Qt::Horizontal</enum>
      </property>
      <widget class="TreeWidget" name="recipeSetList">
+      <property name="verticalScrollMode">
+       <enum>QAbstractItemView::ScrollPerPixel</enum>
+      </property>
       <property name="headerHidden">
        <bool>true</bool>
       </property>
@@ -78,7 +81,11 @@
       <property name="orientation">
        <enum>Qt::Vertical</enum>
       </property>
-      <widget class="QTableWidget" name="recipeTable"/>
+      <widget class="QTableWidget" name="recipeTable">
+       <property name="verticalScrollMode">
+        <enum>QAbstractItemView::ScrollPerPixel</enum>
+       </property>
+      </widget>
       <widget class="TreeWidget" name="notesTree">
        <column>
         <property name="text">

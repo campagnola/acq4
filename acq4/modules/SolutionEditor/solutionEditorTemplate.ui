@@ -24,6 +24,9 @@
        <enum>Qt::Vertical</enum>
       </property>
       <widget class="TreeWidget" name="solutionList">
+       <property name="verticalScrollMode">
+        <enum>QAbstractItemView::ScrollPerPixel</enum>
+       </property>
        <column>
         <property name="text">
          <string>Solution</string>
@@ -82,6 +85,9 @@
         <widget class="TreeWidget" name="solutionTable">
          <property name="alternatingRowColors">
           <bool>true</bool>
+         </property>
+         <property name="verticalScrollMode">
+          <enum>QAbstractItemView::ScrollPerPixel</enum>
          </property>
          <property name="allColumnsShowFocus">
           <bool>false</bool>
