@@ -21,6 +21,7 @@ class CameraWindow(QtGui.QMainWindow):
     
     sigInterfaceAdded = QtCore.Signal(object, object)
     sigInterfaceRemoved = QtCore.Signal(object, object)
+    sigNewFrame = QtCore.Signal(object, object, object)  # self, interface, frame
 
     def __init__(self, module):
         self.hasQuit = False
@@ -81,6 +82,7 @@ class CameraWindow(QtGui.QMainWindow):
         self.roiWidget = ROIPlotter(self)
         self.roiDock = dockarea.Dock(name='ROI Plot', widget=self.roiWidget, size=(400, 10))
         self.cw.addDock(self.roiDock, 'bottom', self.gvDock)
+        self.sigNewFrame.connect(self.roiWidget.newFrame)
 
         # Add timelapse / z stack / mosaic controls
         self.sequencerWidget = ImageSequencer(self)
@@ -257,9 +259,8 @@ class CameraWindow(QtGui.QMainWindow):
         self.xyLabel.setText("X:%0.1fum Y:%0.1fum" % (pos.x() * 1e6, pos.y() * 1e6))
 
     def newFrame(self, iface, frame):
-        # New frame has arrived from an imaging device; 
-        # update ROI plots
-        self.roiWidget.newFrame(iface, frame)
+        # New frame has arrived from an imaging device; send signal
+        self.sigNewFrame.emit(self, iface, frame)
     
     def ifaceTransformChanged(self, iface):
         # imaging device moved; update viewport and tracked group.
@@ -496,7 +497,7 @@ class ROIPlotter(QtGui.QWidget):
             self.roiPlot.removeItem(r['plot'])
         self.ROIs = []
 
-    def newFrame(self, iface, frame):
+    def newFrame(self, mod, iface, frame):
         """New frame has arrived; update ROI plot if needed.
         """
         if not self.roiPlotCheck.isChecked():
