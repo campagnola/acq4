@@ -387,7 +387,6 @@ class RecipeEditorWidget(QtGui.QWidget):
         txt += '</span>\n'
 
         txt += '\n</div>'
-        print txt
         
         # copy to clipboard
         md = QtCore.QMimeData()
