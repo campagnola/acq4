@@ -1,3 +1,4 @@
+import re
 from acq4.pyqtgraph.Qt import QtGui, QtCore
 
 
@@ -18,3 +19,12 @@ class RichTextEdit(QtGui.QTextEdit):
             self.setFontUnderline(not self.fontUnderline())
         else:
             return QtGui.QTextEdit.keyPressEvent(self, ev)
+
+    def toHtml(self):
+        h = QtGui.QTextEdit.toHtml(self).replace('\n', 'NEWLINE')
+        # h = re.sub(r'<!DOCTYPE[^>]*>', '', h, re.I)
+        # h = re.sub(r'<html>', '', h, re.I)
+        # h = re.sub(r'</html>', '', h, re.I)
+        h = re.sub(r'.*<body[^>]*>', '', h, re.I)
+        h = re.sub(r'</body>.*', '', h, re.I)
+        return h.replace('NEWLINE', '\n')

@@ -323,7 +323,7 @@ class RecipeEditorWidget(QtGui.QWidget):
             skip.append(s)
             
         # generate HTML table
-        txt = '<div style="font-family: sans-serif"><h2>%s</h2><table>\n' % self.recipeSet.name
+        txt = '<div style="font-family: sans-serif">\n<h2>%s</h2>\n<table>\n' % self.recipeSet.name
         for row in range(table.rowCount()):
             txt += '  <tr>\n'
             spanskip = 0
@@ -353,12 +353,14 @@ class RecipeEditorWidget(QtGui.QWidget):
                         t = w.text()
                         fs = w.font().pointSize()
                         a = w.alignment()
-                        if a & QtCore.Qt.AlignRight > 0:
+                        if int(a) & QtCore.Qt.AlignRight > 0:
                             align = 'right'
-                        elif a & QtCore.Qt.AlignLeft > 0:
+                        elif int(a) & QtCore.Qt.AlignLeft > 0:
                             align = 'left'
-                        elif a & QtCore.Qt.AlignCenter > 0:
+                        elif int(a) & QtCore.Qt.AlignCenter > 0:
                             align = 'center'
+                        else:
+                            print int(a), QtCore.Qt.AlignRight, QtCore.Qt.AlignLeft,  QtCore.Qt.AlignCenter
                         style = 'font-size: %dpt; text-align: %s' % (fs, align)
                 else:
                     t = str(item.text())
@@ -370,8 +372,8 @@ class RecipeEditorWidget(QtGui.QWidget):
                         for k,v in item.borders.items():
                             style += ' border-%s: 1px solid %s;' % (k, v.color().name())
                     
-                    
-                txt += '    <td style="font-family: sans-serif; font-size: 10pt; vertical-align: middle; width: %dpx; %s" colspan="%s">%s</td>\n' % (width, style, span, t)
+                style = "font-family: sans-serif; font-size: 10pt; vertical-align: middle; width: %dpx; border-spacing: 0px; %s" % (width, style)
+                txt += '    <td style="%s" colspan="%s">%s</td>\n' % (style, span, t)
             txt += '  </tr>\n'
         txt += '</table>\n'
 
@@ -385,6 +387,7 @@ class RecipeEditorWidget(QtGui.QWidget):
         txt += '</span>\n'
 
         txt += '\n</div>'
+        print txt
         
         # copy to clipboard
         md = QtCore.QMimeData()
