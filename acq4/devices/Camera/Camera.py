@@ -2,6 +2,8 @@
 from __future__ import with_statement
 from acq4.devices.DAQGeneric import DAQGeneric, DAQGenericTask
 from acq4.devices.OptomechDevice import OptomechDevice
+from acq4.devices.LightSource import LightSource
+
 from acq4.util.Mutex import Mutex
 from acq4.util.Thread import Thread
 #from acq4.devices.Device import *
@@ -55,7 +57,7 @@ class Camera(DAQGeneric, OptomechDevice):
 
     def __init__(self, dm, config, name):
         OptomechDevice.__init__(self, dm, config, name)
-        
+
         self.lock = Mutex(Mutex.Recursive)
         
         # Generate config to use for DAQ 
@@ -68,8 +70,7 @@ class Camera(DAQGeneric, OptomechDevice):
         
         self.camConfig = config
         self.stateStack = []
-        
-        
+                
         if 'scaleFactor' not in self.camConfig:
             self.camConfig['scaleFactor'] = [1., 1.]
         
@@ -90,6 +91,12 @@ class Camera(DAQGeneric, OptomechDevice):
         self.transformChanged()
         if self.scopeDev is not None:
             self.objectiveChanged()
+
+
+        if self.scopeDev is not None:
+            self.lightSource = self.scopeDev.getLightSource()
+            if self.lightSource is not None:
+                self.lightSource.sigLightChanged.connect(self.lightChanged)
         
         
         self.setupCamera() 
@@ -250,7 +257,7 @@ class Camera(DAQGeneric, OptomechDevice):
         # TODO: Add a non-blocking mode that returns a Future.
         frames = self._acquireFrames(n)
 
-        info = dict(self.getParams(['binning', 'exposure', 'region', 'triggerMode']))
+        info = dict(self.getParams(['binning', 'exposure', 'region', 'triggerMode', 'lightSourceStatus']))
         ss = self.getScopeState()
         ps = ss['pixelSize']  ## size of CCD pixel
         info['pixelSize'] = [ps[0] * info['binning'][0], ps[1] * info['binning'][1]]
@@ -367,6 +374,19 @@ class Camera(DAQGeneric, OptomechDevice):
         with self.lock:
             self.scopeState['objective'] = obj.name()
             self.scopeState['id'] += 1
+
+    def lightChanged(self):        
+        self.scopeState['lightSourceState'] = self.lightSource.describe()
+
+    def getLightState(self):
+        with self.lock:
+            lightState = self.lightSource.getLightSourceState()
+            return lightState
+
+    def getLightSourceDescription(self):
+        with self.lock:
+            lightSourceDescription = self.lightSource.describeAll()
+            return lightSourceDescription
 
     @staticmethod 
     def makeFrameTransform(region, binning):
@@ -772,6 +792,8 @@ class AcquireThread(Thread):
         lastFrameId = None
         fps = None
         
+        lightSourceDescription = self.dev.getLightSourceDescription()
+
         camState = dict(self.dev.getParams(['binning', 'exposure', 'region', 'triggerMode']))
         binning = camState['binning']
         exposure = camState['exposure']
@@ -785,6 +807,7 @@ class AcquireThread(Thread):
             lastFrameTime = lastStopCheck = ptime.time()
             frameInfo = {}
             scopeState = None
+            lightState = None
             while True:
                 ti = 0
                 now = ptime.time()
@@ -801,6 +824,7 @@ class AcquireThread(Thread):
                     info = camState.copy()
                     
                     ss = self.dev.getScopeState()
+
                     if ss['id'] != scopeState:
                         scopeState = ss['id']
                         ## regenerate frameInfo here
@@ -811,10 +835,16 @@ class AcquireThread(Thread):
                             'pixelSize': [ps[0] * binning[0], ps[1] * binning[1]],  ## size of image pixel
                             'objective': ss.get('objective', None),
                             'deviceTransform': transform,
+                            'lightSource': lightSourceDescription
                         }
-                        
+
+                    lightSourceStatus = self.dev.getLightState()
+                    lightSourceInfo = {'lightSourceStatus': lightSourceStatus}
+
                     ## Copy frame info to info array
                     info.update(frameInfo)
+                    info.update(lightSourceInfo)
+
                     
                     ## Process all waiting frames. If there is more than one frame waiting, guess the frame times.
                     dt = (now - lastFrameTime) / len(frames)
