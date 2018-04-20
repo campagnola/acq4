@@ -12,6 +12,8 @@ class STEMDemo(Module):
         self.pip = manager.getDevice('Sensapex2')
         self.center = np.array([0, 0, 0])
         self.radius = 15e-3
+        self.cellDensity = 10. / 1e-3**3  # 5 cells per mm^3
+        self.cellRadius = 0.4e-3
         self.resetCells()
         self.setCenter()
         
@@ -24,6 +26,7 @@ class STEMDemo(Module):
         self.win = pg.GraphicsLayoutWidget()
         self.plot = self.win.addPlot(labels={'left': ('Pipette Voltage', 'V'), 'bottom': ('Time', 's')})
         self.plot.setYRange(-100e-3, 50e-3)
+        self.plot.setDownsampling(auto=True, mode='peak')
         self.win.show()
         
         self.ctrl = pg.QtGui.QWidget()
@@ -50,8 +53,8 @@ class STEMDemo(Module):
         self.audioWritePtr = 0
         self.audioReadPtr = 0
         self.pyaudio = pyaudio.PyAudio()
-        self.bufSize = 1024
-        self.audioBuffer = np.zeros(self.bufSize*1000, dtype='int16')
+        self.bufSize = 256
+        self.audioBuffer = np.zeros(self.bufSize*100000, dtype='int16')
         self.stream = self.pyaudio.open(
             format=self.pyaudio.get_format_from_width(2),
             channels=1,
@@ -67,7 +70,7 @@ class STEMDemo(Module):
 
     def resetCells(self):
         vol = self.radius**3
-        density = 2. / 1e-3**3  # 5 cells per mm^3
+        density = self.cellDensity
         nCells = int(vol * density)
         pos = (np.random.random(size=(nCells, 3)) * (2 * self.radius)) - self.radius
         dist = ((pos**2).sum(axis=1))**0.5
@@ -76,7 +79,7 @@ class STEMDemo(Module):
         self.cellPos = pos
         self.vRest = np.random.normal(size=len(pos), loc=-70e-3, scale=4e-3)
         cellType = (np.random.random(size=len(pos)) > 0.5).astype(int)
-        self.spikeRate = (4 + cellType*20) * 1.1**np.random.normal(size=len(pos), scale=0.5)
+        self.spikeRate = (2 + cellType*20) * 1.1**np.random.normal(size=len(pos), scale=0.5)
         
     def updatePlot(self):
         now = time.time()
@@ -92,7 +95,7 @@ class STEMDemo(Module):
             self.status.setText("%0.2g  %0.2g  IN" % (centerDist, dist2[i]**0.5))
         else:
             self.status.setText("%0.2g  OUT" % centerDist)
-        cellRadius = 0.5e-3
+        cellRadius = self.cellRadius
         
         sampleRate = self.sampleRate
         duration = dt
@@ -125,21 +128,23 @@ class STEMDemo(Module):
         self.plot.plot(self.timeVals, self.buffer, clear=True)
 
     def audioCallback(self, data, frameCount, timeInfo, status):
-        self.audioReadPtr = max(self.audioReadPtr, self.audioWritePtr - frameCount*2)
+        self.audioReadPtr = max(self.audioReadPtr, self.audioWritePtr - frameCount*3)
         readPtr = self.audioReadPtr
         writePtr = self.audioWritePtr
         framesAvailable = writePtr - readPtr
-        readPtr = readPtr % len(self.audioBuffer)
             
         if framesAvailable >= frameCount:
+            readPtr = readPtr % len(self.audioBuffer)
             audio = self.audioBuffer[readPtr:readPtr+frameCount]
             self.audioReadPtr += frameCount
         else:
-            print("underrun")
-            audio = np.empty(frameCount, dtype='int16')
-            audio[:framesAvailable] = self.audioBuffer[readPtr:readPtr+framesAvailable]
-            audio[framesAvailable:] = 0
+            # underrun; just re-use some older buffer
+            readPtr = (writePtr - frameCount) % len(self.audioBuffer)
+            audio = self.audioBuffer[readPtr:readPtr+frameCount]
             self.audioReadPtr += framesAvailable
+            
+        if len(audio) < frameCount:
+            audio = np.contatenate([audio, np.zeros(frameCount - len(audio), dtype=audio.dtype)])
             
         return audio, pyaudio.paContinue
         
