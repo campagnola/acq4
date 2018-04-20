@@ -1,6 +1,8 @@
+import time
+import pyaudio
+import numpy as np
 from acq4.modules.Module import Module
 import acq4.pyqtgraph as pg
-import numpy as np
 
 
 class STEMDemo(Module):
@@ -13,10 +15,15 @@ class STEMDemo(Module):
         self.resetCells()
         self.setCenter()
         
-        self.buffer = np.zeros(5000)
+        self.sampleRate = 8000
+        self.duration = 8.0
+        self.buffer = np.zeros(int(self.duration * self.sampleRate))
+        self.timeVals = np.linspace(-self.duration, 0, len(self.buffer))
+        self.updateTime = time.time()
 
         self.win = pg.GraphicsLayoutWidget()
-        self.plot = self.win.addPlot()
+        self.plot = self.win.addPlot(labels={'left': ('Pipette Voltage', 'V'), 'bottom': ('Time', 's')})
+        self.plot.setYRange(-100e-3, 50e-3)
         self.win.show()
         
         self.ctrl = pg.QtGui.QWidget()
@@ -31,18 +38,36 @@ class STEMDemo(Module):
         self.resetBtn.clicked.connect(self.resetCells)
         self.layout.addWidget(self.resetBtn, 1, 0)
         
+        self.status = pg.QtGui.QLabel("")
+        self.layout.addWidget(self.status, 2, 0)
+        
         self.ctrl.show()
         
         self.timer = pg.QtCore.QTimer()
         self.timer.timeout.connect(self.updatePlot)
-        self.timer.start(30)
+        self.timer.start(50)
+        
+        self.audioWritePtr = 0
+        self.audioReadPtr = 0
+        self.pyaudio = pyaudio.PyAudio()
+        self.bufSize = 1024
+        self.audioBuffer = np.zeros(self.bufSize*1000, dtype='int16')
+        self.stream = self.pyaudio.open(
+            format=self.pyaudio.get_format_from_width(2),
+            channels=1,
+            rate=self.sampleRate,
+            output=True,
+            stream_callback=self.audioCallback,
+            frames_per_buffer=self.bufSize,
+        )
+        self.stream.start_stream()
 
     def setCenter(self):
         self.center = np.array(self.pip.globalPosition())
 
     def resetCells(self):
         vol = self.radius**3
-        density = 1. / 1e-3**3  # 1 cell per mm^3
+        density = 2. / 1e-3**3  # 5 cells per mm^3
         nCells = int(vol * density)
         pos = (np.random.random(size=(nCells, 3)) * (2 * self.radius)) - self.radius
         dist = ((pos**2).sum(axis=1))**0.5
@@ -54,35 +79,72 @@ class STEMDemo(Module):
         self.spikeRate = (4 + cellType*20) * 1.1**np.random.normal(size=len(pos), scale=0.5)
         
     def updatePlot(self):
+        now = time.time()
+        dt = now - self.updateTime
+        self.updateTime = now
+        
         pos = np.array(self.pip.globalPosition()) - self.center
+        centerDist = np.linalg.norm(pos)
         diff = pos[None, :] - self.cellPos
         dist2 = (diff**2).sum(axis=1)
         i = np.argmin(dist2)
-        print(dist2[i])
+        if centerDist < self.radius:
+            self.status.setText("%0.2g  %0.2g  IN" % (centerDist, dist2[i]**0.5))
+        else:
+            self.status.setText("%0.2g  OUT" % centerDist)
         cellRadius = 0.5e-3
         
-        sampleRate = len(self.buffer) / 4.0
-        duration = 1/30.
+        sampleRate = self.sampleRate
+        duration = dt
         chunkSize = int(duration * sampleRate)
         if dist2[i] < cellRadius**2:
             chunk = np.empty(chunkSize)
             chunk[:] = self.vRest[i]
             spikes = poissonProcess(self.spikeRate[i], duration)
             spikeInds = (spikes * sampleRate).astype('uint')
-            spikeInds = spikeInds[spikeInds < chunkSize]
-            chunk[spikeInds] += 120e-3
-            chunk[spikeInds+1] -= 20e-3
+            spikeInds = spikeInds[spikeInds < chunkSize-1]
+            spikeAmps = np.random.normal(size=len(spikeInds), loc=100e-3, scale=5e-3)
+            chunk[spikeInds] += spikeAmps
+            chunk[spikeInds+1] -= spikeAmps * 0.2
         else:
             chunk = np.zeros(chunkSize)
 
-        chunk += np.random.normal(size=chunkSize, scale=5e-3)
+        chunk += np.random.normal(size=chunkSize, scale=1e-3)
         buf = np.roll(self.buffer, -chunkSize)
         buf[-chunkSize:] = chunk
         self.buffer = buf
         
-        self.plot.plot(self.buffer, clear=True)
-
+        audio = chunk * 2**16
+        ptr = self.audioWritePtr % len(self.audioBuffer)
+        writeSize = min(len(self.audioBuffer) - ptr, len(audio))
+        self.audioBuffer[ptr:ptr+writeSize] = audio[:writeSize]
+        if writeSize < len(audio):
+            self.audioBuffer[:len(audio)-writeSize] = audio[writeSize:]
+        self.audioWritePtr += len(audio)
         
+        self.plot.plot(self.timeVals, self.buffer, clear=True)
+
+    def audioCallback(self, data, frameCount, timeInfo, status):
+        self.audioReadPtr = max(self.audioReadPtr, self.audioWritePtr - frameCount*2)
+        readPtr = self.audioReadPtr
+        writePtr = self.audioWritePtr
+        framesAvailable = writePtr - readPtr
+        readPtr = readPtr % len(self.audioBuffer)
+            
+        if framesAvailable >= frameCount:
+            audio = self.audioBuffer[readPtr:readPtr+frameCount]
+            self.audioReadPtr += frameCount
+        else:
+            print("underrun")
+            audio = np.empty(frameCount, dtype='int16')
+            audio[:framesAvailable] = self.audioBuffer[readPtr:readPtr+framesAvailable]
+            audio[framesAvailable:] = 0
+            self.audioReadPtr += framesAvailable
+            
+        return audio, pyaudio.paContinue
+        
+
+
         
 def poissonProcess(rate, tmax=None, n=None):
     """Simulate a poisson process; return a list of event times"""
