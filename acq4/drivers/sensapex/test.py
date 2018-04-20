@@ -55,10 +55,11 @@ while True:
     t1 = time.time()
     dt = t1 - t
     t = t1
-    try:
-        recv = ump.recv_all()
-    except UMPError as exc:
-        recv = exc.errno
+    #try:
+        #recv = ump.recv_all()
+    #except UMPError as exc:
+        #recv = exc.errno
+    recv = []
     line = "%3f %s" % (dt, recv)
     for id in sorted(list(devs.keys())):
         line += "   %d: %s busy: %s" % (id, devs[id].get_pos(timeout=0), devs[id].is_busy())

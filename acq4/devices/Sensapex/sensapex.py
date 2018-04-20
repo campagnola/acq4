@@ -10,8 +10,23 @@ from acq4.pyqtgraph import debug, ptime, SpinBox, Transform3D, solve3DTransform
 
 
 class Sensapex(Stage):
-    """
-    A Sensapex manipulator.
+    """A Sensapex uMp manipulator.
+    
+    Hardware setup: connect the Sensapex TCU (the touch-screen device) to the
+    workstation running ACQ4 by an ethernet cable. Configure the ethernet port
+    to use IP address 169.254.0.11 and netmask 255.255.0.0.
+    
+    Configuration: each uMp manipulator is assigned a numerical ID on the TCU;
+    this ID must be specified in the device configuration for each manipulator
+    that should be accessed by ACQ4::
+    
+        Sensapex1:
+            driver: 'Sensapex'
+            deviceId: 1
+            xPitch: 30
+            
+    The xPitch option specifies the angle in degrees of the x axis relative to
+    the horizontal plane.
     """
     
     monitorThread = None
@@ -164,23 +179,30 @@ class MonitorThread(Thread):
                     if self.stopped:
                         break
                     
-                # read all updates waiting in queue
-                devids = ump.recv_all()
+                ## read all updates waiting in queue
+                #devids = ump.recv_all()
+                #print(devids)
                 
-                if len(devids) == 0:
-                    # no packets in queue; just wait for the next one.
-                    try:
-                        devids = [ump.recv()]
-                    except UMPError as err:
-                        if err.errno == -3:
-                            # ignore timeouts
-                            continue
-                for devid in devids:
-                    dev = devices.get(devid, None)
-                    if dev is not None:
-                        # received an update packet for this device; ask it to update its position
-                        dev._getPosition()
+                #if len(devids) == 0:
+                    ## no packets in queue; just wait for the next one.
+                    #try:
+                        #devids = [ump.recv()]
+                    #except UMPError as err:
+                        #if err.errno == -3:
+                            ## ignore timeouts
+                            #print('timeout')
+                            #continue
+                #print(devids)
+                
+                #for devid in devids:
+                    #dev = devices.get(devid, None)
+                    #if dev is not None:
+                        ## received an update packet for this device; ask it to update its position
+                        #dev._getPosition()
                         
+                for dev in devices.values():
+                    dev._getPosition()
+                
                 time.sleep(0.03)  # rate-limit updates to 30 Hz 
             except:
                 debug.printExc('Error in Sensapex monitor thread:')
