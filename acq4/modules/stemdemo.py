@@ -1,5 +1,6 @@
 import time
 import pyaudio
+import scipy.ndimage as ndi
 import numpy as np
 from acq4.modules.Module import Module
 import acq4.pyqtgraph as pg
@@ -22,6 +23,12 @@ class STEMDemo(Module):
         self.buffer = np.zeros(int(self.duration * self.sampleRate))
         self.timeVals = np.linspace(-self.duration, 0, len(self.buffer))
         self.updateTime = time.time()
+        
+        self.spikeTemplate = np.zeros(40)
+        self.spikeTemplate[5:7] = 100e-3
+        self.spikeTemplate[8:14] = -15e-3
+        self.spikeTemplate = ndi.gaussian_filter(self.spikeTemplate, 1)
+        self.spikeTemplate = self.spikeTemplate / self.spikeTemplate.max()
 
         self.win = pg.GraphicsLayoutWidget()
         self.plot = self.win.addPlot(labels={'left': ('Pipette Voltage', 'V'), 'bottom': ('Time', 's')})
@@ -106,9 +113,11 @@ class STEMDemo(Module):
             spikes = poissonProcess(self.spikeRate[i], duration)
             spikeInds = (spikes * sampleRate).astype('uint')
             spikeInds = spikeInds[spikeInds < chunkSize-1]
-            spikeAmps = np.random.normal(size=len(spikeInds), loc=100e-3, scale=5e-3)
-            chunk[spikeInds] += spikeAmps
-            chunk[spikeInds+1] -= spikeAmps * 0.2
+            spikeAmps = np.random.normal(size=len(spikeInds), loc=100e-3, scale=2e-3)
+            spikes = self.spikeTemplate[None, :] * spikeAmps[:, None]
+            for j in range(len(spikes)):
+                nsamp = min(spikes.shape[1], chunkSize-spikeInds[j])
+                chunk[int(spikeInds[j]):int(spikeInds[j]+nsamp)] += spikes[j,:int(nsamp)]
         else:
             chunk = np.zeros(chunkSize)
 
