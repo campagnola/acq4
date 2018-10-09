@@ -30,15 +30,45 @@ class FilterWheel(Device, OptomechDevice):
     * Support for filter wheel implementation during task : specific filter wheel position during one task, different positions as task sequence
     
     Configuration examples:
-    
+
+        # A simple filter wheel with 4 named positions (and 1 empty). 
+        FilterWheel:
+            driver: 'FilterWheel'
+            parentDevice: 'Microscope'
+            slots:
+                0: "Red"
+                1: "Green"
+                2: "Blue"
+                3: "UV"
+                4: None
+
+        # A filter turret with 3 filter cubes installed. Each filter cube
+        # is a FilterSet device that is defined elsewhere and describes the optical
+        # properties of the filter. Hotkeys are defined for fast switching from 
+        # a programmable keyboard.
         FilterWheel:
             driver: 'FilterWheel'
             parentDevice: 'Microscope'
             slots:
                 # These are the names of FilterSet devices that have been defined elsewhere
-                0: "DIC_FilterCube"
-                1: "EGFP_FilterCube"
-                2: "EYFP_FilterCube"
+                0: 
+                    name: "DIC"
+                    device: "DIC_FilterCube"
+                    hotkey:
+                        device: "XKE128"
+                        key: (6, 13)
+                1:
+                    name: "EGFP"
+                    device: "EGFP_FilterCube"
+                    hotkey:
+                        device: "XKE128"
+                        key: (6, 14)
+                2:
+                    name: "EYFP"
+                    device: "EYFP_FilterCube"
+                    hotkey:
+                        device: "XKE128"
+                        key: (6, 15)
     """
     
     sigFilterChanged = QtCore.Signal(object, object)  # self, Filter
@@ -49,10 +79,14 @@ class FilterWheel(Device, OptomechDevice):
         Device.__init__(self, dm, config, name)
         
         self.lock = Mutex(QtCore.QMutex.Recursive)
-        
+        self.config = config
         self._filters = OrderedDict()
         self._slotNames = OrderedDict()
         self._slotIndicators = OrderedDict()
+
+        # Default implementation keeps track of current position here; assumes user
+        # is responsible for keeping track of position 
+        self._currentPosition = 0
 
         nPos = self.getPositionCount()
         ports = config.get('ports', None)
@@ -68,15 +102,19 @@ class FilterWheel(Device, OptomechDevice):
                 self._filters[k] = None
                 self._slotNames[k] = slot
             elif isinstance(slot, dict):
-                filtname = slot['device']
-                filt = dm.getDevice(filtname)
-                self._filters[k] = filt
-                self._slotNames[k] = slot.get('name', filt.name())
-                devports = filt.ports()
-                if ports is None:
-                    ports = devports
-                elif set(ports) != set(devports):
-                    raise Exception("FilterSet %r does not have the expected ports (%r vs %r)" % (filt, devports, ports))
+                filtname = slot.get('device', None)
+                if filtname is None:
+                    self._filters[k] = None
+                    self._slotNames[k] = slot['name']
+                else:
+                    filt = dm.getDevice(filtname)
+                    self._filters[k] = filt
+                    self._slotNames[k] = slot.get('name', filt.name())
+                    devports = filt.ports()
+                    if ports is None:
+                        ports = devports
+                    elif set(ports) != set(devports):
+                        raise Exception("FilterSet %r does not have the expected ports (%r vs %r)" % (filt, devports, ports))
             else:
                 raise TypeError("Slot definition must be str or dict; got: %r" % slot)
 
@@ -130,8 +168,10 @@ class FilterWheel(Device, OptomechDevice):
 
         The number returned indicates all available positions, regardless of
         the presence or absence of a filter in each position.
+
+        May be reimplemented by subclsases.
         """
-        raise NotImplementedError("Method must be implemented in subclass")
+        return len(self.config['slots'])
     
     def setPosition(self, pos):
         """Set the filter wheel position and return a FilterWheelFuture instance
@@ -154,7 +194,9 @@ class FilterWheel(Device, OptomechDevice):
                 self.device.setPosition(pos)  # actually ask device to move
                 return FilterWheelFuture(self, pos)
         """
-        raise NotImplementedError("Method must be implemented in subclass")
+        # default implementation just accepts and takes note of the change 
+        self._currentPosition = pos
+        self._positionChanged(pos)
 
     def _hotkeyPressed(self, dev, changes, pos):
         self.setPosition(pos)
@@ -169,7 +211,10 @@ class FilterWheel(Device, OptomechDevice):
         return pos
 
     def _getPosition(self):
-        raise NotImplementedError("Method must be implemented in subclass")
+        """May be reimplemented by subclasses to request the current wheel position
+        from a device.
+        """
+        return self._currentPosition
 
     def _positionChanged(self, pos):
         filt = self.getFilter(pos)
@@ -183,9 +228,11 @@ class FilterWheel(Device, OptomechDevice):
                 dev.setBacklight(key, blue=0, red=0)
 
     def isMoving(self):
-        """Return the current position of the filter wheel.
+        """Return True if the filter wheel is currently moving.
+
+        May be reimplemented by subclasses.
         """
-        raise NotImplementedError("Method must be implemented in subclass")
+        return False
         
     def stop(self):
         """Immediately stop the filter wheel.
@@ -197,7 +244,9 @@ class FilterWheel(Device, OptomechDevice):
                 fut.cancel()
 
     def _stop(self):
-        raise NotImplementedError("Method must be implemented in subclass")
+        """May be reimplemented by subclasses to request a wheel stop.
+        """
+        pass
 
     def setSpeed(self, speed):
         raise NotImplementedError("Method must be implemented in subclass")

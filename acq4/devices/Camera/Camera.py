@@ -461,7 +461,8 @@ class Camera(DAQGeneric, OptomechDevice):
 
     def _opticsChanged(self):
         with self.lock:
-            self.scopeState['optics'] = self.listGlobalOptics()
+            # convert ordereddict to dict for storage
+            self.scopeState['optics'] = [dict(x) for x in self.listGlobalOptics()]
             self.scopeState['id'] += 1
 
     def _lightChanged(self):
