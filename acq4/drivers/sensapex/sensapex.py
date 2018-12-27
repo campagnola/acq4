@@ -19,7 +19,7 @@ if sys.platform == 'win32' and platform.architecture()[0] == '64bit':
 LIBUMP_MAX_MANIPULATORS = 254
 LIBUMP_MAX_LOG_LINE_LENGTH = 256
 LIBUMP_DEF_TIMEOUT = 20
-LIBUMP_DEF_BCAST_ADDRESS = "169.254.255.255"
+LIBUMP_DEF_BCAST_ADDRESS = "169.254.255.254"
 LIBUMP_DEF_GROUP = 0
 LIBUMP_MAX_MESSAGE_SIZE = 1502
 LIBUMP_TIMEOUT = -3
@@ -138,7 +138,7 @@ class UMP(object):
         self._timeout = 200
         self.lib = UMP_LIB
         self.lib.ump_errorstr.restype = c_char_p
-
+        
         self.h = None
         self.open()
 
@@ -222,6 +222,7 @@ class UMP(object):
         """
         if address is None:
             address = LIBUMP_DEF_BCAST_ADDRESS
+
         if self.h is not None:
             raise TypeError("UMP is already open.")
         addr = ctypes.create_string_buffer(address)
@@ -331,6 +332,36 @@ class UMP(object):
         """
         self.call('cu_set_active', dev, int(active))
 
+    def umv_set_pressure(self, dev, channel, value):
+        # brief Get pressure value
+        # param   dev       Device ID
+        # param   channel   Pressure/DAC channel, valid values 1-8, 0 to disable
+        # param   value     pressure value (TODO: select scaling, initially this is the DAC value 0 -> 0V and 0xffff -> 10V control voltage)
+        # return  Negative value if an error occured. Zero or positive value otherwise
+        return self.call('umv_set_pressure', dev, int(channel), int (value))
+
+    def umv_get_pressure(self, dev, channel):
+        # brief Get pressure value
+        # param   dev       Device ID
+        # param   channel   Pressure channel, valid values 1-8
+        # return  Negative value if an error occured. Zero or positive value otherwise carrying the pressure value 0 -> 0V and 0xffff -> 10V control voltage
+        return self.call('umv_get_pressure', dev, int(channel))
+
+    def umv_set_valve(self, dev, channel, value):
+        # brief Get pressure value
+        # param   dev       Device ID
+        # param   channel   Pressure channel, valid values 1-8, 0 to disable
+        # param   value     0 for disabled (no excitation) and 1 to enabled valve.
+        # return  Negative value if an error occured. Zero or positive value otherwise carrying the pressure value 0 -> 0V and 0xffff -> 10V control voltage
+        return self.call('umv_set_valve', dev, int(channel), int (value))
+
+    def umv_get_valve(self, dev, channel, value):
+        # brief Get pressure value
+        # param   dev       Device ID
+        # param   channel   Pressure channel, valid values 1-8
+        # return  Negative value if an error occured. 0 for disabled valve and 1 for enabled (energized valve)
+        return self.call('umv_get_valve', dev, int(channel))
+
     def recv(self):
         """Receive one position or status update packet and return the ID
         of the device that sent the packet.
@@ -348,6 +379,7 @@ class UMP(object):
             errstr = self.lib.ump_errorstr(LIBUMP_TIMEOUT)
             raise UMPError(errstr, LIBUMP_TIMEOUT, None)
         return self.h.contents.last_device_received
+
 
     def recv_all(self):
         """Receive all queued position/status update packets and return a list
@@ -372,6 +404,7 @@ class UMP(object):
                 self.set_timeout(old_timeout)
         
         return list(devs)
+
 
 
 class SensapexDevice(object):
