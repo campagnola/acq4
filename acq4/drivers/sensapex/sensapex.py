@@ -36,7 +36,6 @@ class sockaddr_in(Structure):
 
 log_func_ptr = ctypes.CFUNCTYPE(c_void_p, c_int, c_void_p, POINTER(c_char), POINTER(c_char))
 
-
 class ump_positions(Structure):
     _fields_ = [
         ("x", c_int),
@@ -197,6 +196,8 @@ class UMP(object):
                 raise TypeError("UMP is not open.")
             # print("Call:", fn, self.h, args)
             rval = getattr(self.lib, 'ump_' + fn)(self.h, *args)
+
+
             #if 'get_pos' not in fn:
                 #print "sensapex:", rval, fn, args
             if rval < 0:
@@ -211,6 +212,27 @@ class UMP(object):
             # print "   ->", rval
             return rval
 
+    def call_fn(self, fn, *args):
+        # print "%s%r" % (fn, args)
+        with self.lock:
+            if self.h is None:
+                raise TypeError("UMP is not open.")
+            # print("Call:", fn, self.h, args)
+            rval = getattr(self.lib, fn)(self.h, *args)
+
+            #if 'get_pos' not in fn:
+                #print "sensapex:", rval, fn, args
+            if rval < 0:
+                err = self.lib.ump_last_error(self.h)
+                errstr = self.lib.ump_errorstr(err)
+                # print "   -!", errstr
+                if err == -1:
+                    oserr = self.lib.ump_last_os_errno(self.h)
+                    raise UMPError("UMP OS Error %d: %s" % (oserr, os.strerror(oserr)), None, oserr)
+                else:
+                    raise UMPError("UMP Error %d: %s  From %s%r" % (err, errstr, fn, args), err, None)
+            # print "   ->", rval
+            return rval
     def set_timeout(self, timeout):
         self._timeout = timeout
         self.call('set_timeout', timeout)
@@ -338,14 +360,14 @@ class UMP(object):
         # param   channel   Pressure/DAC channel, valid values 1-8, 0 to disable
         # param   value     pressure value (TODO: select scaling, initially this is the DAC value 0 -> 0V and 0xffff -> 10V control voltage)
         # return  Negative value if an error occured. Zero or positive value otherwise
-        return self.call('umv_set_pressure', dev, int(channel), int (value))
+        return self.call_fn('umv_set_pressure', dev, int(channel), int (value))
 
     def umv_get_pressure(self, dev, channel):
         # brief Get pressure value
         # param   dev       Device ID
         # param   channel   Pressure channel, valid values 1-8
         # return  Negative value if an error occured. Zero or positive value otherwise carrying the pressure value 0 -> 0V and 0xffff -> 10V control voltage
-        return self.call('umv_get_pressure', dev, int(channel))
+        return self.call_fn('umv_get_pressure', dev, int(channel))
 
     def umv_set_valve(self, dev, channel, value):
         # brief Get pressure value
@@ -353,14 +375,14 @@ class UMP(object):
         # param   channel   Pressure channel, valid values 1-8, 0 to disable
         # param   value     0 for disabled (no excitation) and 1 to enabled valve.
         # return  Negative value if an error occured. Zero or positive value otherwise carrying the pressure value 0 -> 0V and 0xffff -> 10V control voltage
-        return self.call('umv_set_valve', dev, int(channel), int (value))
+        return self.call_fn('umv_set_valve', dev, int(channel), int (value))
 
-    def umv_get_valve(self, dev, channel, value):
+    def umv_get_valve(self, dev, channel):
         # brief Get pressure value
         # param   dev       Device ID
         # param   channel   Pressure channel, valid values 1-8
         # return  Negative value if an error occured. 0 for disabled valve and 1 for enabled (energized valve)
-        return self.call('umv_get_valve', dev, int(channel))
+        return self.call_fn('umv_get_valve', dev, int(channel))
 
     def recv(self):
         """Receive one position or status update packet and return the ID
@@ -450,6 +472,18 @@ class SensapexDevice(object):
     def _change_callback(self, devid, new_pos, old_pos):
         if self.callback is not None:
             self.callback(self, new_pos, old_pos)
+
+    def set_pressure(self, channel, value):
+        return self.ump.umv_set_pressure(self.devid, int(channel), int (value))
+
+    def get_pressure(self, channel):
+        return self.ump.umv_get_pressure(self.devid, int(channel))
+
+    def set_valve(self, channel, value):
+        return self.ump.umv_set_valve(self.devid, int(channel), int (value))
+
+    def get_valve(self, channel):
+        return self.ump.umv_get_valve(self.devid, int(channel)) 
 
 
 class PollThread(threading.Thread):
