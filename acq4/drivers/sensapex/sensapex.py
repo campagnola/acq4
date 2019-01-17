@@ -292,6 +292,11 @@ class UMP(object):
 
         If *linear* is True, then axis speeds are scaled to produce mroe linear movement.
         """
+        if speed <= 50:
+            self.set_custom_slow_speed(dev,1)
+        else:
+            self.set_custom_slow_speed(dev,0)
+
         if linear:
             # for linear movement, `take_step_ext` allows speed to be given per-axis
             # but potentially generates small position errors due to unstable encoder readout
@@ -305,6 +310,8 @@ class UMP(object):
             speed = speed + [0] * (4-len(speed))
             diff = diff + [0] * (4-len(diff))
             args = [c_int(int(x)) for x in [dev] + diff + speed]
+
+
             with self.lock:
                 self.call('take_step_ext', *args)
                 self.h.contents.last_status[dev] = 1  # mark this manipulator as busy
@@ -383,6 +390,11 @@ class UMP(object):
         # param   channel   Pressure channel, valid values 1-8
         # return  Negative value if an error occured. 0 for disabled valve and 1 for enabled (energized valve)
         return self.call_fn('umv_get_valve', dev, int(channel))
+
+    def set_custom_slow_speed(self, dev, enabled):
+        feature_custom_slow_speed = 32
+        return self.call('set_ext_feature', c_int(dev), c_int(feature_custom_slow_speed), c_int(enabled))
+       
 
     def recv(self):
         """Receive one position or status update packet and return the ID
@@ -485,6 +497,8 @@ class SensapexDevice(object):
     def get_valve(self, channel):
         return self.ump.umv_get_valve(self.devid, int(channel)) 
 
+    def set_custom_slow_speed(self, enabled):
+        return self.ump.set_custom_slow_speed(self.devid, enabled)
 
 class PollThread(threading.Thread):
     """Thread to poll for all manipulator position changes.
