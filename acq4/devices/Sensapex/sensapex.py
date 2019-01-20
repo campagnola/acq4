@@ -34,7 +34,7 @@ class Sensapex(Stage):
         self.dev = SensapexDevice(self.devid, callback=self._positionChanged, n_axes=config.get('nAxes'))
         # force cache update for this device.
         # This should also verify that we have a valid device ID
-        self.dev.get_pos()
+        #self.dev.get_pos()
 
         self._lastMove = None
         man.sigAbortAll.connect(self.stop)

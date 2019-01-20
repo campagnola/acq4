@@ -274,7 +274,9 @@ class UMP(object):
             timeout = self._timeout
         xyzwe = c_int(), c_int(), c_int(), c_int(), c_int()
         timeout = c_int(timeout)
-        r = self.call('get_positions_ext', c_int(dev), timeout, *[byref(x) for x in xyzwe])
+       
+        r = self.call('get_positions_ext', c_int(dev), timeout, *[byref(x) for x in xyzwe]) 
+
         n_axes = self.axis_count(dev)
         #if dev == 9:
         #    return [-x.value for x in xyzwe[:n_axes]]
@@ -292,25 +294,34 @@ class UMP(object):
 
         If *linear* is True, then axis speeds are scaled to produce mroe linear movement.
         """
-        if speed <= 50:
+        previous_custom_slow_speed = self.get_custom_slow_speed(dev)
+        slow_speed_changed = False
+
+        if speed <= 50 and previous_custom_slow_speed == 0:
             self.set_custom_slow_speed(dev,1)
+            slow_speed_changed = True
         else:
-            self.set_custom_slow_speed(dev,0)
+            if previous_custom_slow_speed == 1:
+                self.set_custom_slow_speed(dev,0)
+                slow_speed_changed = True
 
         if linear:
             # for linear movement, `take_step_ext` allows speed to be given per-axis
             # but potentially generates small position errors due to unstable encoder readout
-            assert simultaneous is True, "Cannot make linear movement with simultaneous=False"
+            #assert simultaneous is True, "Cannot make linear movement with simultaneous=False"
             current_pos = self.get_pos(dev)
             diff = [float(p-c) for p,c in zip(pos, current_pos)]
             dist = max(1, np.linalg.norm(diff))
 
             # speeds < 7 um/sec produce large position errors
             speed = [max(1, speed * abs(d / dist)) for d in diff]
+           
+            
+            
             speed = speed + [0] * (4-len(speed))
             diff = diff + [0] * (4-len(diff))
             args = [c_int(int(x)) for x in [dev] + diff + speed]
-
+            
 
             with self.lock:
                 self.call('take_step_ext', *args)
@@ -332,6 +343,9 @@ class UMP(object):
                 time.sleep(0.005)
             pos2 = np.array(self.get_pos(dev))
             dif = pos2 - np.array(pos[:3])
+
+        if slow_speed_changed:
+            self.set_custom_slow_speed(dev, previous_custom_slow_speed)
 
     def is_busy(self, dev):
         """Return True if the specified device is currently moving.
@@ -394,7 +408,10 @@ class UMP(object):
     def set_custom_slow_speed(self, dev, enabled):
         feature_custom_slow_speed = 32
         return self.call('set_ext_feature', c_int(dev), c_int(feature_custom_slow_speed), c_int(enabled))
-       
+    
+    def get_custom_slow_speed(self,dev):
+        feature_custom_slow_speed = 32
+        return self.call('get_ext_feature',c_int(dev), c_int(feature_custom_slow_speed))
 
     def recv(self):
         """Receive one position or status update packet and return the ID

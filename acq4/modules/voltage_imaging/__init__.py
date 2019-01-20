@@ -1,0 +1,1 @@
+from .voltage_imaging import VoltageImagingModule

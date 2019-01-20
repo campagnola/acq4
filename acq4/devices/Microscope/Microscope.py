@@ -10,6 +10,7 @@ from acq4.Manager import getManager
 import acq4.pyqtgraph as pg
 from acq4.util import Qt
 import collections
+from acq4.drivers.sensapex.SensapexZeissSDK import SensapexZeiss
 
 Ui_Form = Qt.importTemplate('.deviceTemplate')
 
@@ -124,6 +125,9 @@ class Microscope(Device, OptomechDevice):
         
         self.setCurrentSubdevice(self.currentObjective)
         self.sigObjectiveChanged.emit((self.currentObjective, lastObj))
+
+        if self.switchDevice:
+            self.switchDevice.setSwitch(index)
 
     def getObjective(self):
         """Return the currently active Objective."""
