@@ -99,6 +99,10 @@ class Pipette(Device, OptomechDevice):
         self.tracker = PipetteTracker(self)
         deviceManager.declareInterface(name, ['pipette'], self)
 
+        target = self.readConfigFile('target').get('targetGlobalPosition', None)
+        if target is not None:
+            self.setTarget(target)
+
     def savePosition(self, name, pos=None):
         """Store a position in global coordinates for later use.
 
@@ -440,6 +444,16 @@ class Pipette(Device, OptomechDevice):
         surface = scope.getSurfaceDepth()
         return surface - self.globalPosition()[2]
 
+    def globalDirection(self):
+        """Return a global uinit vector pointing in the direction of the pipette axis.
+        """
+        o = np.array(self.globalPosition())
+        dz = -1.0
+        dx = -dz / np.tan(self.pitchRadians())
+        p = self.mapToGlobal(np.array([dx, 0, dz]))
+        v = p - o
+        return v / np.linalg.norm(v)
+
     def advance(self, depth, speed):
         """Move the electrode along its axis until it reaches the specified
         (global) depth.
@@ -558,6 +572,7 @@ class Pipette(Device, OptomechDevice):
 
     def setTarget(self, target):
         self.target = np.array(target)
+        self.writeConfigFile({'targetGlobalPosition': list(self.target)}, 'target')
         self.sigTargetChanged.emit(self, self.target)
 
     def targetPosition(self):

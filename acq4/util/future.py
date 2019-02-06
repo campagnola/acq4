@@ -12,7 +12,10 @@ class Future(Qt.QObject):
     class StopRequested(Exception):
         """Raised by _checkStop if stop() has been invoked.
         """
-        pass
+
+    class Timeout(Exception):
+        """Raised by wait() if the timeout period elapses.
+        """
 
     def __init__(self):
         Qt.QObject.__init__(self)
@@ -22,13 +25,23 @@ class Future(Qt.QObject):
         self._isDone = False
         self._wasInterrupted = False
         self._errorMessage = None
-        self._stopRequested = True
+        self._stopRequested = False
         self._state = 'starting'
 
     def currentState(self):
+        """Return the current state of this future.
+
+        The state can be any string used to indicate the progress this future is making in its task.
+        """
         return self._state
 
     def setState(self, state):
+        """Set the current state of this future.
+
+        The state can be any string used to indicate the progress this future is making in its task.
+        """
+        if state == self._state:
+            return
         self._state = state
         self.sigStateChanged.emit(self, state)
 
@@ -55,7 +68,7 @@ class Future(Qt.QObject):
             self._errorMessage = reason
         self._stopRequested = True
 
-    def _taskDone(self, interrupted=False, error=None):
+    def _taskDone(self, interrupted=False, error=None, state=None):
         """Called by subclasses when the task is done (regardless of the reason)
         """
         if self._isDone:
@@ -66,9 +79,9 @@ class Future(Qt.QObject):
             self._errorMessage = error
         self._wasInterrupted = interrupted
         if interrupted:
-            self.setState('error')
+            self.setState(state or 'interrupted')
         else:
-            self.setState('success')
+            self.setState(state or 'complete')
         self.sigFinished.emit(self)
 
     def wasInterrupted(self):
@@ -99,7 +112,7 @@ class Future(Qt.QObject):
         start = ptime.time()
         while True:
             if (timeout is not None) and (ptime.time() > start + timeout):
-                raise ValueError("Timeout waiting for task to complete.")
+                raise self.Timeout("Timeout waiting for task to complete.")
                 
             if self.isDone():
                 break

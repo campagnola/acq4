@@ -159,7 +159,7 @@ class UMP(object):
         self.lib.ump_get_version.restype = ctypes.c_char_p
         return self.lib.ump_get_version()
         
-    def list_devices(self, max_id=16):
+    def list_devices(self, max_id=20):
         """Return a list of all connected device IDs.
         """
         devs = []
@@ -207,8 +207,8 @@ class UMP(object):
                 if err == -1:
                     oserr = self.lib.ump_last_os_errno(self.h)
                     raise UMPError("UMP OS Error %d: %s" % (oserr, os.strerror(oserr)), None, oserr)
-                else:
-                    raise UMPError("UMP Error %d: %s  From %s%r" % (err, errstr, fn, args), err, None)
+                #else:
+                #    raise UMPError("UMP Error %d: %s  From %s%r" % (err, errstr, fn, args), err, None)
             # print "   ->", rval
             return rval
 
@@ -313,11 +313,10 @@ class UMP(object):
             diff = [float(p-c) for p,c in zip(pos, current_pos)]
             dist = max(1, np.linalg.norm(diff))
 
-            # speeds < 7 um/sec produce large position errors
-            speed = [max(1, speed * abs(d / dist)) for d in diff]
-           
-            
-            
+
+            # speeds < 32 um/sec produce large position errors
+            speed = [max(32, speed * abs(d / dist)) for d in diff]
+
             speed = speed + [0] * (4-len(speed))
             diff = diff + [0] * (4-len(diff))
             args = [c_int(int(x)) for x in [dev] + diff + speed]
