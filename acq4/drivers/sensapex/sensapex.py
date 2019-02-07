@@ -207,8 +207,8 @@ class UMP(object):
                 if err == -1:
                     oserr = self.lib.ump_last_os_errno(self.h)
                     raise UMPError("UMP OS Error %d: %s" % (oserr, os.strerror(oserr)), None, oserr)
-                #else:
-                #    raise UMPError("UMP Error %d: %s  From %s%r" % (err, errstr, fn, args), err, None)
+                else:
+                    raise UMPError("UMP Error %d: %s  From %s%r" % (err, errstr, fn, args), err, None)
             # print "   ->", rval
             return rval
 
@@ -270,6 +270,7 @@ class UMP(object):
         If *timeout* == 0, then the position is returned directly from cache
         and not queried from the device.
         """
+
         if timeout is None:
             timeout = self._timeout
         xyzwe = c_int(), c_int(), c_int(), c_int(), c_int()
@@ -559,9 +560,9 @@ class PollThread(threading.Thread):
                     break
 
                 # read all updates waiting in queue
-                ump.call('receive', 20)
+                #ump.call('receive', 20)
                 #ump.recv_all()
-
+                
                 # check for position changes and invoke callbacks
                 with self.lock:
                     callbacks = self.callbacks.copy()
