@@ -159,7 +159,7 @@ class UMP(object):
         self.lib.ump_get_version.restype = ctypes.c_char_p
         return self.lib.ump_get_version()
         
-    def list_devices(self, max_id=16):
+    def list_devices(self, max_id=20):
         """Return a list of all connected device IDs.
         """
         devs = []
@@ -270,6 +270,7 @@ class UMP(object):
         If *timeout* == 0, then the position is returned directly from cache
         and not queried from the device.
         """
+
         if timeout is None:
             timeout = self._timeout
         xyzwe = c_int(), c_int(), c_int(), c_int(), c_int()
@@ -559,8 +560,9 @@ class PollThread(threading.Thread):
 
                 # read all updates waiting in queue
                 ump.call('receive', 30)
-                #ump.recv_all()
 
+                #ump.recv_all()
+                
                 # check for position changes and invoke callbacks
                 with self.lock:
                     callbacks = self.callbacks.copy()
