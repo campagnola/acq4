@@ -3,6 +3,7 @@ from acq4.util import Qt
 from acq4.util.Mutex import Mutex
 from acq4.devices.Device import Device
 from acq4.drivers.sensapex.SensapexZeissSDK import SensapexZeiss
+from acq4.drivers.sensapex import SensapexDevice, UMP, UMPError
 
 
 class ZeissObjectiveSwitch(Device):
@@ -39,8 +40,19 @@ class ZeissObjectiveSwitch(Device):
 
     def setSwitch(self, newPosition):
         if self.currentIndex != int(newPosition)+1:
+            ump = UMP.get_ump()
+            old_pos = ump.get_pos(19, 0)
+            new_pos = old_pos
+            new_pos[2] -= 1000000
+            if new_pos[2] > 0:
+                ump.goto_pos(19,new_pos,5000)
+            busy = True
+            while busy:
+                busy = ump.is_busy(19)
+
             self.zeiss.GetObjective().SetPosition(int(newPosition)+1)
             self.currentIndex = int(newPosition)+1
+
 
 
 
