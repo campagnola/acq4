@@ -81,7 +81,7 @@ errs = []
 targets = []
 positions = []
 moves = []
-for i in range(10):
+for i in range(300):
     d = (np.random.random(size=3) * 1e6).astype(int)
     #d[0] = 0
     #d[1] *= 0.01
@@ -89,7 +89,7 @@ for i in range(10):
     moves.append(d)
     target = p1 + d
     targets.append(target)
-    dev.goto_pos(target, speed=100, linear=True) 
+    dev.goto_pos(target, speed=20) # was: speed=1000, linear=True) 
     while dev.is_busy():
         update()
     waitstart = pg.ptime.time()

@@ -38,20 +38,37 @@ class ZeissObjectiveSwitch(Device):
         self.currentIndex = self.zeiss.GetObjective().GetPosition()
         return self.currentIndex-1
 
-    def setSwitch(self, newPosition):
-        if self.currentIndex != int(newPosition)+1:
-            ump = UMP.get_ump()
-            old_pos = ump.get_pos(19, 0)
-            new_pos = old_pos
-            new_pos[2] -= 1000000
-            if new_pos[2] > 0:
-                ump.goto_pos(19,new_pos,5000)
-            busy = True
-            while busy:
-                busy = ump.is_busy(19)
+    def setSwitch(self, newPosition, objective=None):
+       
 
-            self.zeiss.GetObjective().SetPosition(int(newPosition)+1)
-            self.currentIndex = int(newPosition)+1
+        if self.currentIndex != int(newPosition)+1:
+            if objective:
+                print(objective.offset())
+
+            ump = UMP.get_ump()
+            dev = SensapexDevice(19)
+            old_pos = dev.get_pos(timeout=200)
+            print (old_pos)
+            new_pos = list(old_pos)
+            new_pos[2] = 2000000
+            if new_pos[2] > 0:
+               dev.goto_pos(new_pos, speed=1000, linear=True)
+            
+            i=0
+            while dev.is_busy():
+                i=i+1
+
+            dev.goto_pos(old_pos, speed=1000, linear=True)
+            
+            while dev.is_busy():
+                i=i+1
+
+            #self.zeiss.GetObjective().SetPosition(int(newPosition)+1)
+            #self.currentIndex = int(newPosition)+1
+
+            #ump.goto_pos(19,old_pos,3000)
+            #while busy:
+            #    busy = ump.is_busy(19)
 
 
 

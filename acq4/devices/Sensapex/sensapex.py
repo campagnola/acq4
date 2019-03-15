@@ -243,6 +243,7 @@ class SensapexMoveFuture(MoveFuture):
     def _stopped(self):
         # Called when the manipulator is stopped, possibly interrupting this move.
         status = self._getStatus()
+    
         if status == 1:
             # finished; ignore stop
             return

@@ -127,7 +127,8 @@ class Microscope(Device, OptomechDevice):
         self.sigObjectiveChanged.emit((self.currentObjective, lastObj))
 
         if self.switchDevice:
-            self.switchDevice.setSwitch(index)
+            print(self.currentObjective.offset())
+            self.switchDevice.setSwitch(index,self.currentObjective)
 
     def getObjective(self):
         """Return the currently active Objective."""
