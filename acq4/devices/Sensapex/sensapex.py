@@ -228,7 +228,14 @@ class SensapexMoveFuture(MoveFuture):
             return 0
         # did we reach target?
         pos = self.dev._getPosition()
-        dif = ((np.array(pos) - np.array(self.targetPos))**2).sum()**0.5
+        dif = np.linalg.norm(np.array(pos) - np.array(self.targetPos))
+
+        if dif > 3000:
+            # uMp bug: some versions have a race condition that occasionally
+            # causes bad position values to be returned immediately after a move has finished
+            pos = self.dev._getPosition()
+            dif = np.linalg.norm(np.array(pos) - np.array(self.targetPos))
+
         if dif < 3000:  # require 3um accuracy
             # reached target
             self._finished = True
@@ -240,7 +247,7 @@ class SensapexMoveFuture(MoveFuture):
             self._errorMsg = "Move did not complete (target=%s, position=%s, dif=%s)." % (self.targetPos, pos, dif)
             return -1
 
-    def _stopped(self):
+    def _stopped(self, tryAgain=0):
         # Called when the manipulator is stopped, possibly interrupting this move.
         status = self._getStatus()
     
@@ -251,7 +258,13 @@ class SensapexMoveFuture(MoveFuture):
             self._errorMsg = "Move was interrupted before completion."
         elif status == 0:
             # not actually stopped! This should not happen.
-            raise RuntimeError("Interrupted move but manipulator is still running!")
+            if tryAgain < 5:
+                # wait a bit, just to be sure..
+                print("TRYAGAIN:", tryAgain)
+                time.sleep(0.1)
+                return self._stopped(tryAgain=tryAgain+1)
+            else:
+                raise RuntimeError("Interrupted move but manipulator is still running!")
         else:
             raise Exception("Unknown status: %s" % status)
 

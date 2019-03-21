@@ -142,13 +142,15 @@ class PatchPipetteStateManager(Qt.QObject):
             except Exception:
                 # hopefully someone else is watching this future for errors!
                 pass
-            disconnect(job.sigStateChanged, self.jobStateChanged)
-            disconnect(job.sigFinished, self.jobFinished)
 
     def jobStateChanged(self, job, state):
         self.dev.logEvent("stateManagerEvent", info=state)
 
     def jobFinished(self, job):
+        try:
+            job.cleanup()
+        except Exception:
+            printExc("Error during %s cleanup:" % job.stateName)
         disconnect(job.sigStateChanged, self.jobStateChanged)
         disconnect(job.sigFinished, self.jobFinished)
         if job.nextState is not None:

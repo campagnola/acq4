@@ -128,6 +128,9 @@ class OptomechDevice(InterfaceMixin):
         # the device to connect (usually this is just 'default').
         self.__parentPort = None
 
+        # keep track of children so that we can inform them quickly when a parent transform has changed
+        self.__children = []
+
         # Cached transforms from this device to global
         # 0 indicates the cache is invalid. None indicates the transform is non-affine,
         # and might not be cacheable.
@@ -218,6 +221,7 @@ class OptomechDevice(InterfaceMixin):
                 self.__parent.sigGlobalopticsChanged.disconnect(self.__parentOpticsChanged)
                 self.__parent.sigGlobalSubdeviceChanged.disconnect(self.__parentSubdeviceChanged)
                 self.__parent.sigGlobalSubdeviceListChanged.disconnect(self.__parentSubdeviceListChanged)
+                self.__parent.__children.remove(self)
 
             # look up device from its name
             if isinstance(parent, six.string_types):
@@ -237,6 +241,7 @@ class OptomechDevice(InterfaceMixin):
             parent.sigGlobalOpticsChanged.connect(self.__parentOpticsChanged)
             parent.sigGlobalSubdeviceChanged.connect(self.__parentSubdeviceChanged)
             parent.sigGlobalSubdeviceListChanged.connect(self.__parentSubdeviceListChanged)
+            parent.__children.append(self)
             self.__parent = parent
             self.__parentPort = port
         
@@ -253,8 +258,9 @@ class OptomechDevice(InterfaceMixin):
         with self.__lock:
             tr = self.globalTransform(subdev)
             if tr is not None:
-                return self._mapTransform(obj, tr)
-            
+                mapped = self._mapTransform(obj, tr)
+                return mapped
+
             ## If our transformation is nonlinear, then the local mapping step must be done separately.
             subdev = self._subdevDict(subdev)
             o2 = self.mapToParentDevice(obj, subdev)
@@ -420,11 +426,7 @@ class OptomechDevice(InterfaceMixin):
         If *subdev* is given, it must be a dictionary of {deviceName: subdevice} or
         {deviceName: subdeviceName} pairs specifying the state to compute.
         """
-        if subdev is None:
-            subdev = {}
-            
         with self.__lock:
-            #dev = self.getSubdevice(subdev)
             if subdev is None: ## return cached transform
                 if self.__globalTransform == 0:
                     self.__globalTransform = self.__computeGlobalTransform()
@@ -435,14 +437,18 @@ class OptomechDevice(InterfaceMixin):
     def __computeGlobalTransform(self, subdev=None, inverse=False):
         ## subdev must be a dict
         with self.__lock:
-            devices = self.parentDevices()
-            transform = pg.SRTTransform3D()
-            for d in devices:
-                tr = d.deviceTransform(subdev)
-                if tr is None:
-                    self.__globalTransform = None
-                    return None
-                transform = tr * transform
+            parent = self.parentDevice()
+            if parent is None:
+                parentTr = pg.SRTTransform3D()
+            else:
+                parentTr = parent.globalTransform(subdev)
+            if parentTr is None:
+                return None
+            deviceTr = self.deviceTransform(subdev)
+            if deviceTr is None:
+                return None
+
+            transform = parentTr * deviceTr
                 
         if inverse:
             inv, invertible = transform.inverted()
@@ -572,11 +578,15 @@ class OptomechDevice(InterfaceMixin):
             parents.append(p)
         return parents
 
-    def invalidateCachedTransforms(self):
+    def invalidateCachedTransforms(self, invalidateLocal=True):
         with self.__lock:
-            self.__inverseTransform = 0
+            if invalidateLocal:
+                self.__inverseTransform = 0
             self.__globalTransform = 0
             self.__inverseGlobalTransform = 0
+            # child global transforms must also be invalidated before any change signals are emitted
+            for ch in self.__children:
+                ch.invalidateCachedTransforms(invalidateLocal=False)
             
     def addSubdevice(self, subdev):
         subdev.setParentDevice(self)

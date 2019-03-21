@@ -10,6 +10,7 @@ from acq4 import getManager
 from acq4.devices.PatchPipette import PatchPipette
 import acq4.pyqtgraph as pg
 from .pipetteControl import PipetteControl
+from .mockPatch import MockPatch
 
 
 Ui_MultiPatch = Qt.importTemplate('.multipatchTemplate')
@@ -24,6 +25,10 @@ class MultiPatch(Module):
         
         self.win = MultiPatchWindow(self)
         self.win.show()
+
+    def quit(self):
+        self.win.saveConfig()
+        return Module.quit(self)
 
 
 class MultiPatchWindow(Qt.QWidget):
@@ -72,7 +77,11 @@ class MultiPatchWindow(Qt.QWidget):
             if i > 0:
                 ctrl.hideHeader()
 
+            # insert mock patching ui if requested
             self.ui.matrixLayout.addWidget(ctrl, i, 0)
+            if module.config.get('enableMockPatch', False):
+                pip.mockpatch = MockPatch(pip)
+                self.ui.matrixLayout.addWidget(pip.mockpatch.widget, i, 1)
 
             pip.sigActiveChanged.connect(self.pipetteActiveChanged)
             ctrl.sigSelectChanged.connect(self.pipetteSelectChanged)
@@ -103,10 +112,12 @@ class MultiPatchWindow(Qt.QWidget):
         self.ui.coarseSearchBtn.clicked.connect(self.coarseSearch)
         self.ui.fineSearchBtn.clicked.connect(self.fineSearch)
         self.ui.hideMarkersBtn.toggled.connect(self.hideBtnToggled)
+        self.ui.cellDetectBtn.clicked.connect(self.cellDetectClicked)
         self.ui.sealBtn.clicked.connect(self.sealClicked)
+        self.ui.breakInBtn.clicked.connect(self.breakInClicked)
+        self.ui.reSealBtn.clicked.connect(self.reSealClicked)
         self.ui.recordBtn.toggled.connect(self.recordToggled)
         self.ui.resetBtn.clicked.connect(self.resetHistory)
-        self.ui.reSealBtn.clicked.connect(self.reSeal)
         # self.ui.testPulseBtn.clicked.connect(self.testPulseClicked)
 
         self.ui.fastBtn.clicked.connect(lambda: self.ui.slowBtn.setChecked(False))
@@ -131,8 +142,40 @@ class MultiPatchWindow(Qt.QWidget):
             if d is not None:
                 self.surfaceDepthChanged(d)
 
+        self.loadConfig()
+
+    def saveConfig(self):
+        geom = self.geometry()
+        config = {
+            'geometry': [geom.x(), geom.y(), geom.width(), geom.height()],
+        }
+        configfile = os.path.join('modules', self.module.name + '.cfg')
+        man = getManager()
+        man.writeConfigFile(config, configfile)
+
+    def loadConfig(self):
+        configfile = os.path.join('modules', self.module.name + '.cfg')
+        man = getManager()
+        config = man.readConfigFile(configfile)
+        if 'geometry' in config:
+            geom = Qt.QRect(*config['geometry'])
+            self.setGeometry(geom)
+
     def profileComboChanged(self):
+        default = self.module.config['patchProfiles'].get('default')
         profile = self.module.config['patchProfiles'].get(self.ui.profileCombo.currentText(), {})
+
+        if default is not None:
+            # mix defaults in with selected profile
+            p = {}
+            for k in set(list(default.keys()) + list(profile.keys())):
+                p[k] = default.get(k, {}).copy()
+                p[k].update(profile.get(k, {}))
+            profile = p
+
+        from pprint import pprint
+        pprint(profile)
+
         for pip in self.pips:
             pip.stateManager().setStateConfig(profile)
 
@@ -150,12 +193,6 @@ class MultiPatchWindow(Qt.QWidget):
     #     for pip in self.selectedPipettes():
     #         pip.retract(self.ui.stepSizeSpin.value(), speed)
 
-    def reSeal(self):
-        speed = self.module.config.get('reSealSpeed', 1e-6)
-        distance = self.module.config.get('reSealDistance', 150e-6)
-        for pip in self.selectedPipettes():
-            pip.retract(distance, speed)
-        
     def moveAboveTarget(self):
         speed = self.selectedSpeed(default='fast')
         pips = self.selectedPipettes()
@@ -441,6 +478,24 @@ class MultiPatchWindow(Qt.QWidget):
             if isinstance(pip, PatchPipette):
                 pip.setState('seal')
 
+    def breakInClicked(self):
+        pips = self.selectedPipettes()
+        for pip in pips:
+            if isinstance(pip, PatchPipette):
+                pip.setState('break in')
+
+    def cellDetectClicked(self):
+        pips = self.selectedPipettes()
+        for pip in pips:
+            if isinstance(pip, PatchPipette):
+                pip.setState('cell detect')
+
+    def reSealClicked(self):
+        pips = self.selectedPipettes()
+        for pip in pips:
+            if isinstance(pip, PatchPipette):
+                pip.setState('reseal')
+        
     def pipetteMoveStarted(self, pip):
         self.updateXKeysBacklight()
         event = {"device": str(pip.name()),
