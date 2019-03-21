@@ -18,9 +18,9 @@ if sys.platform == 'win32' and platform.architecture()[0] == '64bit':
 
 LIBUMP_MAX_MANIPULATORS = 254
 LIBUMP_MAX_LOG_LINE_LENGTH = 256
-LIBUMP_DEF_TIMEOUT = 20
+LIBUMP_DEF_TIMEOUT = 200
 LIBUMP_DEF_BCAST_ADDRESS = "169.254.255.255"
-LIBUMP_DEF_GROUP = 0
+LIBUMP_DEF_GROUP = 3
 LIBUMP_MAX_MESSAGE_SIZE = 1502
 LIBUMP_TIMEOUT = -3
 
@@ -165,11 +165,12 @@ class UMP(object):
         devs = []
         with self.lock:
             old_timeout = self._timeout
-            self.set_timeout(10)
+            self.set_timeout(LIBUMP_DEF_TIMEOUT)
             try:
                 for i in range(min(max_id, LIBUMP_MAX_MANIPULATORS)):
                     try:
                         p = self.get_pos(i)
+                        #p = self.call("ping",i)
                         devs.append(i)
                     except UMPError as ex:
                         if ex.errno in (-5, -6):  # device does not exist
@@ -283,7 +284,7 @@ class UMP(object):
         #    return [-x.value for x in xyzwe[:n_axes]]
         return [x.value for x in xyzwe[:n_axes]]
 
-    def goto_pos(self, dev, pos, speed, block=False, simultaneous=True, linear=True):
+    def goto_pos(self, dev, pos, speed, block=False, simultaneous=True, linear=False):
         """Request the specified device to move to an absolute position (in nm).
         
         *speed* is given in um/sec.
@@ -295,18 +296,23 @@ class UMP(object):
 
         If *linear* is True, then axis speeds are scaled to produce mroe linear movement.
         """
-        previous_custom_slow_speed = self.get_custom_slow_speed(dev)
+        #previous_custom_slow_speed = self.get_custom_slow_speed(dev)
         slow_speed_changed = False
+       
 
-        if speed <= 50 and previous_custom_slow_speed == 0:
-            self.set_custom_slow_speed(dev,1)
-            slow_speed_changed = True
-        else:
-            if previous_custom_slow_speed == 1:
-                self.set_custom_slow_speed(dev,0)
-                slow_speed_changed = True
+        #if speed <= 50 and previous_custom_slow_speed == 0:
+        #    self.set_custom_slow_speed(dev,1)
+        #    slow_speed_changed = True
+        #    print ("CLS = true")
+        #else:
+        #    if previous_custom_slow_speed == 1:
+        #        self.set_custom_slow_speed(dev,0)
+        #        print ("CLS = false")
+        #        slow_speed_changed = True
+
 
         if linear:
+            print ("LINEAR GOTOPOS")
             # for linear movement, `take_step_ext` allows speed to be given per-axis
             # but potentially generates small position errors due to unstable encoder readout
             #assert simultaneous is True, "Cannot make linear movement with simultaneous=False"
@@ -331,6 +337,7 @@ class UMP(object):
             mode = int(bool(simultaneous))  # all axes move simultaneously
             speed = max(1, speed)  # speed < 1 crashes the uMp
             args = [c_int(int(x)) for x in [dev] + pos + [speed, mode]]
+            print (args)
             with self.lock:
                 self.call('goto_position_ext', *args)
                 self.h.contents.last_status[dev] = 1  # mark this manipulator as busy
@@ -350,7 +357,7 @@ class UMP(object):
         """Return True if the specified device is currently moving.
         """
         with self.lock:
-            #self.receive()
+            self.call('receive', 20)
             status = self.call('get_status_ext', c_int(dev))
             return bool(self.lib.ump_is_busy_status(status))
     
@@ -482,8 +489,8 @@ class SensapexDevice(object):
     def get_pos(self, timeout=None):
         return self.ump.get_pos(self.devid, timeout=timeout)
     
-    def goto_pos(self, pos, speed, block=False, simultaneous=True, linear=True):
-        return self.ump.goto_pos(self.devid, pos, speed, block=block, simultaneous=simultaneous, linear=linear)
+    def goto_pos(self, pos, speed, block=False, simultaneous=True, linear=False):
+        return self.ump.goto_pos(self.devid, pos, speed, block=block, simultaneous=simultaneous, linear=False)
     
     def is_busy(self):
         return self.ump.is_busy(self.devid)
@@ -559,7 +566,7 @@ class PollThread(threading.Thread):
                     break
 
                 # read all updates waiting in queue
-                ump.call('receive', 30)
+                ump.call('receive', 0)
 
                 #ump.recv_all()
                 
@@ -571,7 +578,7 @@ class PollThread(threading.Thread):
                 for dev_id, dev_callbacks in callbacks.items():
                     if len(callbacks) == 0:
                         continue
-                    new_pos = ump.get_pos(dev_id, 0)
+                    new_pos = ump.get_pos(dev_id,20)
                     old_pos = last_pos.get(dev_id)
                     if new_pos != old_pos:
                         for cb in dev_callbacks:
