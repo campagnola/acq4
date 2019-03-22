@@ -298,7 +298,7 @@ class UMP(object):
         """
         #previous_custom_slow_speed = self.get_custom_slow_speed(dev)
         slow_speed_changed = False
-       
+        linear = False
 
         #if speed <= 50 and previous_custom_slow_speed == 0:
         #    self.set_custom_slow_speed(dev,1)

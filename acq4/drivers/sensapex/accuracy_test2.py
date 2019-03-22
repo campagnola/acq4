@@ -78,7 +78,7 @@ targets = []
 positions = []
 moves = []
 for i in range(100):
-    d = (np.random.random(size=3) * 3e6).astype(int)
+    d = (np.random.random(size=3) * 1e6).astype(int)
     #d[0] = 0
     #d[1] *= 0.01
     #d[2] *= 0.01
