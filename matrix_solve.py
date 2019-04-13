@@ -38,8 +38,8 @@ def fit_transform(guess, X, Y):
             'disp': True,
             'maxiter': 20000,
         }, 
-        # method='Nelder-Mead',
-        method='Powell',
+        method='Nelder-Mead',
+        # method='Powell',
     )
     return result.x.reshape(3,4)
 
