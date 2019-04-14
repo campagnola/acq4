@@ -31,15 +31,18 @@ def fit_transform(guess, X, Y):
     global best
     best = (np.inf, None)
     result = scipy.optimize.minimize(err, x0=guess, args=(X, Y),
-        tol=1e-12,
+        tol=1e-16,
         options={
-            'eps': 1e-11, 
-            'gtol': 1e-12, 
-            'disp': True,
+            # 'eps': 1e-16, 
+            'gtol': 1e-16, 
+            # 'disp': True,
             'maxiter': 20000,
         }, 
         method='Nelder-Mead',
+        # method='SLSQP',
+        # method='BFGS',
         # method='Powell',
+        # method='CG',
     )
     return result.x.reshape(3,4)
 
@@ -74,7 +77,7 @@ def solve_many(X, Y, n_iter=100):
         Ya = Y[inds[:4]]
         m.append(solve(Xa, Ya))
     m = np.mean(np.dstack(m), axis=2)
-    return m
+    return m[:3]
 
 
 def plot_xy(x, y, plt, ax=(0,1)):
@@ -119,44 +122,53 @@ Y = np.array([[-1.91778515e-02,  1.99578199e-02,  6.75236806e-05],
 Y[0,0] += 0.0001
 
 
+def superfit(X, Y):
 
+    # guess = solve(X[:4], Y[:4])
+    guess = solve_many(X, Y)
 
-# guess = solve(X[:4], Y[:4])
-guess = solve_many(X, Y)
+    m_init = fit_transform(guess, X, Y)
 
-print("GUESS:")
-print(guess)
-guess = guess[:3]
+    d_init = dist(m_init, X, Y)
+    mask = (d_init - d_init.mean()) < d_init.std()*2
+
+    X_masked = X[mask]
+    Y_masked = Y[mask]
+    m_final = fit_transform(guess,  X_masked, Y_masked)
+
+    return guess, m_init, mask, m_final
+
+for i in range(10):
+    guess, m_init, mask, m_final = superfit(X, Y)
+    d_final = dist(m_final, X[mask], Y[mask])
+    print((~mask).sum(), np.linalg.norm(d_final))
+
+# print("GUESS:")
+# print(guess)
 Y_guess = map(guess, X)
-print(dist(guess, X, Y))
-# print(abs(guess-m) / abs(m))
+# print(dist(guess, X, Y))
 
-m_fit = fit_transform(guess, X, Y)
-Y_fit = map(m_fit, X)
-print("FINAL:")
-print(m_fit)
-d_fit = dist(m_fit, X, Y)
-print(d_fit)
-print(np.linalg.norm(d_fit))
-# print(abs(m_fit-m) / abs(m))
+# print("INITIAL:")
+# print(m_init)
+d_init = dist(m_init, X, Y)
+print(d_init)
+# print(np.linalg.norm(d_init))
+Y_fit = map(m_init, X)
 
-print("SUPERFINAL:")
-mask = (d_fit - d_fit.mean()) < d_fit.std()*2
+# print("FINAL:")
 print(mask)
-X_masked = X[mask]
-Y_masked = Y[mask]
-m_fit2 = fit_transform(guess,  X_masked, Y_masked)
-Y_masked_fit = map(m_fit2, X_masked)
-print(m_fit2)
-d_fit2 = dist(m_fit2, X_masked, Y_masked)
-print(d_fit2)
-print(np.linalg.norm(d_fit2))
-# print(abs(m_fit-m) / abs(m))
+# print(m_final)
+d_final = dist(m_final, X[mask], Y[mask])
+print(d_final)
+print(np.linalg.norm(d_final))
+Y_masked_fit = map(m_final, X[mask])
+
+
 
 pg.mkQApp()
 
 w1 = plot_xyz(Y, Y_guess, "Initial guess")
 w2 = plot_xyz(Y, Y_fit, "Initial fit")
-w3 = plot_xyz(Y_masked, Y_masked_fit, "Final fit")
+w3 = plot_xyz(Y[mask], Y_masked_fit, "Final fit")
 
 
