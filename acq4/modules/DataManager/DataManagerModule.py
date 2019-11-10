@@ -165,6 +165,7 @@ class DataManager(Module):
             return
         if os.path.isdir(dirName):
             self.manager.setBaseDir(dirName)
+            self.manager.setCurrentDir(dirName)
         else:
             raise Exception("Storage directory is invalid")
             
@@ -186,36 +187,35 @@ class DataManager(Module):
         cdir = self.manager.getCurrentDir()
         if not cdir.isManaged():
             cdir.createIndex()
-        
+
         if ftype == 'Folder':
             nd = cdir.mkdir('NewFolder', autoIncrement=True)
-            #item = self.model.handleIndex(nd)
             self.ui.fileTreeWidget.editItem(nd)
         else:
             spec = self.manager.config['folderTypes'][ftype]
             name = time.strftime(spec['name'])
                 
-            ## Determine where to put the new directory
+            # Determine where to put the new directory by walking
+            # up the folder tree until we find a folder of similar type
             parent = cdir
+            baseDir = self.manager.getBaseDir()
             try:
                 checkDir = cdir
                 for i in range(5):
-                    if not checkDir.isManaged():
+                    if checkDir is baseDir or not checkDir.isManaged():
                         break
                     inf = checkDir.info()
-                    if 'dirType' in inf and inf['dirType'] == ftype:
+                    if inf.get('dirType', None) == ftype:
                         parent = checkDir.parent()
                         break
-                    #else:
-                        #print "dir no match:", spec, inf
                     checkDir = checkDir.parent()
             except:
                 printExc("Error while deciding where to put new folder (using currentDir by default)")
             
-            ## make
+            # make
             nd = parent.mkdir(name, autoIncrement=True)
             
-            ## Add meta-info
+            # Add meta-info
             info = {'dirType': ftype}
             if spec.get('experimentalUnit', False):
                 info['expUnit'] = True
