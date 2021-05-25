@@ -670,57 +670,23 @@ class LogWidget(Qt.QWidget):
         text = re.sub(r"\n", "<br/>\n", text)
         return text
 
-    # def displayText(self, msg, entry, colorStr='black', timeStamp=None, clean=True):
-    # if clean:
-    # msg = self.cleanText(msg)
-
-    # if msg[-1:] == '\n':
-    # msg = msg[:-1]
-    # msg = '<br />'.join(msg.split('\n'))
-    # if timeStamp is not None:
-    # strn = '<b style="color:black"> %s </b> <span style="color:%s"> %s </span>' % (timeStamp, colorStr, msg)
-    # else:
-    # strn = '<span style="color:%s"> %s </span>' % (colorStr, msg)
-    #self.ui.output.appendHtml(strn)
-    # self.cache[id(entry)].append(strn)
-
-    # def displayComplexMessage(self, entry, color='black'):
-    # self.displayText(entry['message'], entry, color, timeStamp = entry['timestamp'], clean=True)
-    # if entry.has_key('reasons'):
-    # reasons = self.formatReasonStrForHTML(entry['reasons'])
-    # self.displayText(reasons, entry, 'black', clean=False)
-    # if entry.has_key('docs'):
-    # docs = self.formatDocsStrForHTML(entry['docs'])
-    # self.displayText(docs, entry, 'black', clean=False)
-    # if entry.get('exception', None) is not None:
-    # self.displayException(entry['exception'], entry, 'black', tracebacks=entry.get('traceback', None))
-
     def formatExceptionForHTML(self, entry, exception=None, count=1, entryId=None):
         # Here, exception is a dict that holds the message, reasons, docs, traceback and oldExceptions (which are also dicts, with the same entries)
         # the count and tracebacks keywords are for calling recursively
         if exception is None:
             exception = entry["exception"]
-        # if tracebacks is None:
-        # tracebacks = []
 
         indent = 10
 
         text = self.cleanText(exception["message"])
         text = re.sub(r"^HelpfulException: ", "", text)
-        # if exception.has_key('oldExc'):
-        # self.displayText("&nbsp;"*indent + str(count)+'. ' + text, entry, color, clean=False)
-        # else:
-        # self.displayText("&nbsp;"*indent + str(count)+'. Original error: ' + text, entry, color, clean=False)
         messages = [text]
-        # print "\n", messages, "\n"
 
         if "reasons" in exception:
             reasons = self.formatReasonsStrForHTML(exception["reasons"])
             text += reasons
-            # self.displayText(reasons, entry, color, clean=False)
         if "docs" in exception:
             docs = self.formatDocsStrForHTML(exception["docs"])
-            # self.displayText(docs, entry, color, clean=False)
             text += docs
 
         traceback = [self.formatTracebackForHTML(exception["traceback"], count)]
@@ -732,13 +698,6 @@ class LogWidget(Qt.QWidget):
             messages.extend(msgs)
             traceback.extend(tb)
 
-        # else:
-        # if len(tracebacks)==count+1:
-        # n=0
-        # else:
-        # n=1
-        # for i, tb in enumerate(tracebacks):
-        # self.displayTraceback(tb, entry, number=i+n)
         if count == 1:
             exc = '<div class="exception"><ol>' + "\n".join(["<li>%s</li>" % ex for ex in text]) + "</ol></div>"
             tbStr = "\n".join(
@@ -747,10 +706,8 @@ class LogWidget(Qt.QWidget):
                     for i, tb in enumerate(traceback)
                 ]
             )
-            # traceback = "<div class=\"traceback\" id=\"%s\"><ol>"%str(entryId) + tbStr + "</ol></div>"
             entry["tracebackHtml"] = tbStr
 
-            # return exc + '<a href="#" onclick="showDiv(\'%s\')">Show traceback</a>'%str(entryId) + traceback
             return exc + '<a href="exc:%s">Show traceback %s</a>' % (str(entryId), str(entryId))
         else:
             return text, traceback, messages
@@ -762,37 +719,16 @@ class LogWidget(Qt.QWidget):
             print("\n" + str(tb) + "\n")
             raise
         return re.sub(" ", "&nbsp;", ("").join(map(self.cleanText, tb)))[:-1]
-        # tb = [self.cleanText(strip(x)) for x in tb]
-        # lines = []
-        # prefix = ''
-        # for l in ''.join(tb).split('\n'):
-        # if l == '':
-        # continue
-        # if l[:9] == "Traceback":
-        # prefix = ' ' + str(number) + '. '
-        # continue
-        # spaceCount = 0
-        # while l[spaceCount] == ' ':
-        # spaceCount += 1
-        # if prefix != '':
-        # spaceCount -= 1
-        # lines.append("&nbsp;"*(spaceCount*4) + prefix + l)
-        # prefix = ''
-        # return '<div class="traceback">' + '<br />'.join(lines) + '</div>'
-        # self.displayText('<br />'.join(lines), entry, color, clean=False)
 
     def formatReasonsStrForHTML(self, reasons):
-        # indent = 6
         reasonStr = "<table class='reasons'><tr><td>Possible reasons include:\n<ul>\n"
         for r in reasons:
             r = self.cleanText(r)
             reasonStr += "<li>" + r + "</li>\n"
-            # reasonStr += "&nbsp;"*22 + chr(97+i) + ". " + r + "<br>"
         reasonStr += "</ul></td></tr></table>\n"
         return reasonStr
 
     def formatDocsStrForHTML(self, docs):
-        # indent = 6
         docStr = "<div class='docRefs'>Relevant documentation:\n<ul>\n"
         for d in docs:
             d = self.cleanText(d)
@@ -801,21 +737,14 @@ class LogWidget(Qt.QWidget):
         return docStr
 
     def exportHtml(self, fileName=False):
-        # self.makeError1()
         if fileName is False:
             self.fileDialog = FileDialog(self, "Save HTML as...", self.manager.getCurrentDir().name())
-            # self.fileDialog.setFileMode(Qt.QFileDialog.AnyFile)
             self.fileDialog.setAcceptMode(Qt.QFileDialog.AcceptSave)
             self.fileDialog.show()
             self.fileDialog.fileSelected.connect(self.exportHtml)
             return
         if fileName[-5:] != ".html":
             fileName += ".html"
-
-        # doc = self.ui.output.document().toHtml('utf-8')
-        # for e in self.displayedEntries:
-        # if e.has_key('tracebackHtml'):
-        # doc = re.sub(r'<a href="exc:%s">(<[^>]+>)*Show traceback %s(<[^>]+>)*</a>'%(str(e['id']), str(e['id'])), e['tracebackHtml'], doc)
 
         global pageTemplate
         doc = pageTemplate
@@ -829,7 +758,6 @@ class LogWidget(Qt.QWidget):
                     doc,
                 )
 
-        # doc = self.ui.logView.page().currentFrame().toHtml()
         f = open(fileName, "w")
         f.write(doc.encode("utf-8"))
         f.close()
@@ -841,13 +769,7 @@ class LogWidget(Qt.QWidget):
             # print x
         except:
             t, exc, tb = sys.exc_info()
-            # logExc(message="This button doesn't work", reasons='reason a, reason b', docs='documentation')
-            # if isinstance(exc, HelpfulException):
-            # exc.prependErr("Button doesn't work", (t,exc,tb), reasons = ["It's supposed to raise an error for testing purposes", "You're doing it wrong."])
-            # raise
-            # else:
             printExc("This is the message sent to printExc.")
-            # raise HelpfulException(message='This button does not work.', exc=(t, exc, tb), reasons=["It's supposed to raise an error for testing purposes", "You're doing it wrong."])
 
     def makeError2(self):
         # just for testing error logging
@@ -880,7 +802,6 @@ class LogWidget(Qt.QWidget):
             cursor.insertHtml(tb)
 
     def clear(self):
-        # self.ui.logView.setHtml("")
         self.ui.output.clear()
         self.displayedEntryies = []
 
@@ -888,9 +809,7 @@ class LogWidget(Qt.QWidget):
 class ErrorDialog(Qt.QDialog):
     def __init__(self):
         Qt.QDialog.__init__(self)
-        # self.setModal(False)
         self.setWindowFlags(Qt.Qt.Window)
-        # self.setWindowModality(Qt.Qt.NonModal)
         self.setWindowTitle("ACQ4 Error")
         self.layout = Qt.QVBoxLayout()
         self.layout.setContentsMargins(3, 3, 3, 3)
@@ -898,11 +817,7 @@ class ErrorDialog(Qt.QDialog):
         self.messages = []
 
         self.msgLabel = Qt.QLabel()
-        # self.msgLabel.setWordWrap(False)
-        # self.msgLabel.setMaximumWidth(800)
         self.msgLabel.setSizePolicy(Qt.QSizePolicy.Expanding, Qt.QSizePolicy.Expanding)
-        # self.msgLabel.setFrameStyle(Qt.QFrame.Box)
-        # self.msgLabel.setStyleSheet('QLabel { font-weight: bold }')
         self.layout.addWidget(self.msgLabel)
         self.msgLabel.setMaximumWidth(800)
         self.msgLabel.setMinimumWidth(500)
@@ -979,7 +894,6 @@ class ErrorDialog(Qt.QDialog):
             if w is not None:
                 cp = w.geometry().center()
                 self.setGeometry(cp.x() - self.width() / 2.0, cp.y() - self.height() / 2.0, self.width(), self.height())
-        # self.activateWindow()
         self.raise_()
 
     @staticmethod
@@ -1015,11 +929,6 @@ class ErrorDialog(Qt.QDialog):
 
 
 if __name__ == "__main__":
-    # import sys
-    # import os.path as osp
-    # d = osp.dirname(osp.dirname(osp.abspath(__file__)))
-    # sys.path = [osp.join(d, 'util')] + sys.path + [d]
-    # import pyqtgraph
     app = Qt.QApplication([])
     log = LogWindow(None)
     log.show()
