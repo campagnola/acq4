@@ -14,29 +14,31 @@ from __future__ import print_function
 
 import atexit
 import gc
-import getopt
 import os
 import sys
 import time
 import weakref
 from collections import OrderedDict
 
-import six
-
 import pyqtgraph as pg
 import pyqtgraph.reload as reload
+import six
+from pyqtgraph import configfile
+from pyqtgraph.debug import printExc, Profiler
+from pyqtgraph.util.mutex import Mutex
+from six.moves import map
+
 from . import __version__
+from . import arg_parser
 from . import devices, modules
 from .Interfaces import InterfaceDirectory
 from .devices.Device import Device, DeviceTask
-from pyqtgraph.debug import printExc, Profiler
-from pyqtgraph import configfile
-from pyqtgraph.util.mutex import Mutex
 from .util import DataManager, ptime, Qt
 from .util.HelpfulException import HelpfulException
+from .util.debug import logMsg, logExc, createLogWindow  # logExc needed by debug
 
-from .util.debug import logMsg, createLogWindow, logExc # logExc needed by debug
-from six.moves import map
+
+__all__ = ["Manager", "getManager", "logExc", "logMsg"]
 
 
 ### All other modules can use this function to get the manager instance
@@ -67,22 +69,20 @@ class Manager(Qt.QObject):
     sigCurrentDirChanged = Qt.Signal(object, object, object)  # (file, change, args)
     sigBaseDirChanged = Qt.Signal()
     sigLogDirChanged = Qt.Signal(object)  # dir
-    sigTaskCreated = Qt.Signal(object, object)  ## for debugger module
+    sigTaskCreated = Qt.Signal(object, object)  # for debugger module
     sigAbortAll = Qt.Signal()  # User requested abort all tasks via ESC key
 
     CREATED = False
     single = None
 
     def __init__(self, configFile=None, argv=None):
-        self.lock = Mutex(recursive=True)  ## used for keeping some basic methods thread-safe
-        # self.devices = OrderedDict()  # all currently loaded devices
+        self.lock = Mutex(recursive=True)  # used for keeping some basic methods thread-safe
         self.modules = OrderedDict()  # all currently running modules
         self.devices = OrderedDict()  # all devices loaded via Manager
         self.definedModules = OrderedDict()  # all custom-defined module configurations
         self.config = OrderedDict()
         self.currentDir = None
         self.baseDir = None
-        self.exitOnError = False
         self.gui = None
         self.shortcuts = []
         self.disableDevs = []
@@ -98,32 +98,9 @@ class Manager(Qt.QObject):
             Manager.single = self
 
             self.logWindow = createLogWindow(self)
-
             self.documentation = Documentation()
 
-            if argv is not None:
-                try:
-                    opts, args = getopt.getopt(
-                        argv, 'c:a:x:m:b:s:d:nD',
-                        ['config=', 'config-name=', 'module=', 'base-dir=', 'storage-dir=',
-                         'disable=', 'no-manager', 'disable-all', 'exit-on-error'])
-                except getopt.GetoptError as err:
-                    print(str(err))
-                    print("""
-    Valid options are:
-        -x --exit-on-error Whether to exit immidiately on the first exception during initial Manager setup
-        -c --config=       Configuration file to load
-        -a --config-name=  Named configuration to load
-        -m --module=       Module name to load
-        -b --base-dir=     Base directory to use
-        -s --storage-dir=  Storage directory to use
-        -n --no-manager    Do not load manager module
-        -d --disable=      Disable the device specified
-        -D --disable-all   Disable all devices
-    """)
-                    raise
-            else:
-                opts = []
+            self.args = arg_parser.parser.parse_args(argv)
 
             Qt.QObject.__init__(self)
             atexit.register(self.quit)
@@ -132,35 +109,8 @@ class Manager(Qt.QObject):
             # Import all built-in module classes
             modules.importBuiltinClasses()
 
-            ## Handle command line options
-            loadModules = []
-            setBaseDir = None
-            setStorageDir = None
-            loadManager = True
-            loadConfigs = []
-            for o, a in opts:
-                if o in ['-c', '--config']:
-                    configFile = a
-                elif o in ['-a', '--config-name']:
-                    loadConfigs.append(a)
-                elif o in ['-m', '--module']:
-                    loadModules.append(a)
-                elif o in ['-b', '--baseDir']:
-                    setBaseDir = a
-                elif o in ['-s', '--storageDir']:
-                    setStorageDir = a
-                elif o in ['-n', '--noManager']:
-                    loadManager = False
-                elif o in ['-d', '--disable']:
-                    self.disableDevs.append(a)
-                elif o in ['-D', '--disable-all']:
-                    self.disableAllDevs = True
-                elif o == "--exit-on-error":
-                    self.exitOnError = True
-                else:
-                    print("Unhandled option", o, a)
-
             ## Read in configuration file
+            configFile = self.args.config
             if configFile is None:
                 configFile = self._getConfigFile()
 
@@ -171,38 +121,31 @@ class Manager(Qt.QObject):
 
             ## Act on options if they were specified..
             try:
-                for name in loadConfigs:
+                for name in self.args.config_name:
                     self.loadDefinedConfig(name)
 
-                if setBaseDir is not None:
-                    self.setBaseDir(setBaseDir)
-                if setStorageDir is not None:
-                    self.setCurrentDir(setStorageDir)
-                if loadManager:
+                if self.args.base_dir is not None:
+                    self.setBaseDir(self.args.base_dir)
+                if self.args.storage_dir is not None:
+                    self.setCurrentDir(self.args.storage_dir)
+                if not self.args.no_manager:
                     self.showGUI()
                     self.createWindowShortcut('F1', self.gui.win)
-                for m in loadModules:
-                    try:
-                        if m in self.definedModules:
-                            self.loadDefinedModule(m)
-                        else:
-                            self.loadModule(m)
-                    except:
-                        if not loadManager:
-                            self.showGUI()
-                        raise
+                for m in self.args.module:
+                    if m in self.definedModules:
+                        self.loadDefinedModule(m)
+                    else:
+                        self.loadModule(m)
 
-            except:
+            except Exception:
+                self._tryErrorHandler()
                 printExc("\nError while acting on command line options: (but continuing on anyway..)")
-                if self.exitOnError:
-                    raise
 
-        except:
+        except Exception:
             printExc("Error while configuring Manager:")
             Manager.CREATED = False
             Manager.single = None
-            if self.exitOnError:
-                raise
+            self._tryErrorHandler()
 
         finally:
             if len(self.modules) == 0:
@@ -316,8 +259,7 @@ class Manager(Qt.QObject):
                             self.loadDevice(driverName, conf, k)
                         except:
                             printExc("Error configuring device %s:" % k)
-                            if self.exitOnError:
-                                raise
+                            self._tryErrorHandler()
                     print("=== Device configuration complete ===")
                     logMsg("=== Device configuration complete ===")
 
@@ -391,8 +333,7 @@ class Manager(Qt.QObject):
 
             except:
                 printExc("Error in ACQ4 configuration:")
-                if self.exitOnError:
-                    raise
+                self._tryErrorHandler()
         # print self.config
         self.sigConfigChanged.emit()
 
@@ -552,8 +493,7 @@ class Manager(Qt.QObject):
             except Exception:
                 f = False
                 logMsg("Can't find currently selected directory, Data Manager has not been loaded.", msgType='warning')
-                if self.exitOnError:
-                    raise
+                self._tryErrorHandler()
             return f
 
     def getModule(self, name):
@@ -616,8 +556,7 @@ class Manager(Qt.QObject):
             # print "    request quit done"
         except:
             printExc("Error while requesting module '%s' quit." % name)
-            if self.exitOnError:
-                raise
+            self._tryErrorHandler()
 
         ## Module should have called moduleHasQuit already, but just in case:
         with self.lock:
@@ -646,11 +585,10 @@ class Manager(Qt.QObject):
             sh.activated.connect(lambda *args: win.raise_())
         except:
             printExc("Error creating shortcut '%s':" % keys)
-            if self.exitOnError:
-                raise
-
-        with self.lock:
-            self.shortcuts.append((sh, keys, weakref.ref(win)))
+            self._tryErrorHandler()
+        else:
+            with self.lock:
+                self.shortcuts.append((sh, keys, weakref.ref(win)))
 
     def removeWindowShortcut(self, win):
         ## Need to remove shortcuts after window is closed, because the shortcut is hanging on to all the widgets in the window
@@ -854,8 +792,7 @@ class Manager(Qt.QObject):
                         d.quit()
                     except:
                         printExc("Error while requesting device '%s' quit." % d.name)
-                        if self.exitOnError:
-                            raise
+                        self._tryErrorHandler()
                     dlg.setValue(lm + ld - len(devs))
 
                 print("Closing windows..")
@@ -864,6 +801,12 @@ class Manager(Qt.QObject):
             print("\n    ciao.")
         Qt.QApplication.quit()
 
+    def _tryErrorHandler(self):
+        if self.args.exit_on_error:
+            raise
+        elif self.args.pdb_on_error:
+            import pdb
+            pdb.post_mortem(sys.exc_info()[2])
 
 class DeviceLocker(object):
     def __init__(self, manager, devices, timeout=10.0):

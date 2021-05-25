@@ -10,28 +10,17 @@ Distributed under MIT/X11 license. See license.txt for more infomation.
 
 print("Loading ACQ4...")
 import os, sys
+import argparse
 
 if __package__ is None:
     import acq4
-
     __package__ = 'acq4'
 
 from .util import Qt
 from .Manager import Manager
 from .util.debug import installExceptionHandler
+from .arg_parser import args
 
-
-# Pull some args out
-if "--profile" in sys.argv:
-    profile = True
-    sys.argv.pop(sys.argv.index('--profile'))
-else:
-    profile = False
-if "--callgraph" in sys.argv:
-    callgraph = True
-    sys.argv.pop(sys.argv.index('--callgraph'))
-else:
-    callgraph = False
 
 ## Enable stack trace output when a crash is detected
 from .util.debug import enableFaulthandler
@@ -46,6 +35,11 @@ from .util import Qt
 import pyqtgraph as pg
 
 app = pg.mkQApp()
+
+if args.dbg_on is not None:
+    console = pg.dbg()
+    console.ui.onlyUncaughtCheck.setChecked(False)
+    console.ui.filterText.setText(args.dbg_on)
 
 ## Install a simple message handler for Qt errors:
 def messageHandler(*args):
@@ -85,8 +79,6 @@ try:
     pg.QtCore.qInstallMsgHandler(messageHandler)
 except AttributeError:
     pg.QtCore.qInstallMessageHandler(messageHandler)
-
-
 
 
 ## Prevent Windows 7 from grouping ACQ4 windows under a single generic python icon in the taskbar
@@ -173,13 +165,13 @@ if interactive:
 
     atexit.register(save_history)
 else:
-    if profile:
+    if args.profile:
         import cProfile
 
         cProfile.run('app.exec_()', sort='cumulative')
         pg.exit()  # pg.exit() causes python to exit before Qt has a chance to clean up. 
         # this avoids otherwise irritating exit crashes.
-    elif callgraph:
+    elif args.callgraph:
         from pycallgraph import PyCallGraph
         from pycallgraph.output import GraphvizOutput
 
