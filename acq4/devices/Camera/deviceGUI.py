@@ -23,37 +23,7 @@ class CameraDeviceGui(Qt.QWidget):
         params = []
         
         for k, p in self.params.items():
-            try:
-                val = self.dev.getParam(k)
-            except:
-                continue
-            
-            if not p[1]:  ## read-only param
-                params.append({'name': k, 'readonly': True, 'value': val, 'type': 'str'})
-
-            else:  ## parameter is writable
-                if type(p[0]) is tuple:
-                    if len(p[0]) == 3:
-                        (mn, mx, step) = p[0]
-                    elif len(p[0]) == 2:
-                        (mn, mx) = p[0]
-                        step = 1
-                    else:
-                        raise TypeError("Invalid parameter specification for '%s': %s" % (k, repr(p)))
-                    if type(mx) in [int, np.long] and type(mn) in [int, np.long]:
-                        params.append({'name': k, 'type': 'int', 'value': val, 'limits': (mn, mx), 'step': step})
-                    else:
-                        params.append({'name': k, 'type': 'float', 'value': val, 'limits': (mn, mx), 'dec': True, 'step': 1})
-                        if k == 'exposure':
-                            params[-1]['suffix'] = 's'
-                            params[-1]['siPrefix'] = True
-                            params[-1]['minStep'] = 1e-6
-                elif type(p[0]) is list:
-                    #print k, val, p
-                    params.append({'name': k, 'type': 'list', 'value': val, 'values': p[0]})
-                else:
-                    print("    Ignoring parameter '%s': %s" % (k, str(p)))
-                    continue
+            params.append(makeParameterTreeSpec(dev, k, p))
         
         self.paramSet = Parameter(name='cameraParams', type='group', children=params)
         self.paramWidget = ParameterTree()
@@ -94,3 +64,44 @@ class CameraDeviceGui(Qt.QWidget):
 
     def reconnect(self):
         self.dev.reconnect()
+
+
+def makeParameterTreeSpec(dev, name, info):
+    """Return specification for building a parametertree item to represent a camera
+    parameter.
+
+    name,info must be a key:value pair from camera.listParams()
+    """
+    try:
+        val = dev.getParam(name)
+    except:
+        return None
+    
+    values, isWritable, isReadable, dependencies = info
+
+    if not isWritable:
+        return {'name': name, 'readonly': True, 'value': val, 'type': 'str'}
+
+    else:  ## parameter is writable
+        if isinstance(values, tuple):
+            if len(values) == 3:
+                (mn, mx, step) = values
+            elif len(values) == 2:
+                (mn, mx) = values
+                step = 1
+            else:
+                raise TypeError("Invalid parameter specification for '%s': %s" % (name, repr(p)))
+            if isinstance(mx, (int, np.integer)) and isinstance(mn, (int, np.integer)):
+                return {'name': name, 'type': 'int', 'value': val, 'limits': (mn, mx), 'step': step}
+            else:
+                spec = {'name': name, 'type': 'float', 'value': val, 'limits': (mn, mx), 'dec': True, 'step': 1}
+                if name == 'exposure':
+                    spec['suffix'] = 's'
+                    spec['siPrefix'] = True
+                    spec['minStep'] = 1e-6
+                return spec
+        elif isinstance(values, list):
+            {'name': name, 'type': 'list', 'value': val, 'values': values}
+        else:
+            # print("    Ignoring parameter '%s': %s" % (name, str(p)))
+            return None

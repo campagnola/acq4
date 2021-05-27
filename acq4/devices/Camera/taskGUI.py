@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function
+import numpy as np
+import pyqtgraph as pg
 from acq4.util import Qt
 from acq4.devices.DAQGeneric.taskGUI import DAQGenericTaskGui
 from acq4.devices.Device import TaskGui
-import numpy as np
-import pyqtgraph as pg
+from .deviceGUI import makeParameterTreeSpec
+
 
 Ui_Form = Qt.importTemplate('.TaskTemplate')
 
@@ -18,6 +20,12 @@ class CameraTaskGui(DAQGenericTaskGui):
         self.stateGroup = pg.WidgetGroup(self) ## create state group before DAQ creates its own interface
         self.ui.horizSplitter.setStretchFactor(0, 0)
         self.ui.horizSplitter.setStretchFactor(1, 1)
+
+        self.ui.fixedFrameSpin.setOpts(int=True, bounds=(1, None), step=1)
+
+        self.camParams = CameraParamGroup('Camera Params', dev)
+        self.ui.cameraParamTree.setParameters(self.camParams, showTop=True)
+        self.ui.cameraParamTree.setHeaderHidden(True)
         
         DAQGenericTaskGui.createChannelWidgets(self, self.ui.ctrlSplitter, self.ui.plotSplitter)
         self.ui.plotSplitter.setStretchFactor(0, 10)
@@ -29,8 +37,6 @@ class CameraTaskGui(DAQGenericTaskGui):
             p.plotItem.ctrl.maxTracesCheck.setChecked(True)
             p.plotItem.ctrl.maxTracesSpin.setValue(1)
             p.plotItem.ctrl.forgetTracesCheck.setChecked(True)
-        
-        conf = self.dev.camConfig
             
         tModes = self.dev.listParams('triggerMode')[0]
         for m in tModes:
@@ -127,3 +133,14 @@ class CameraTaskGui(DAQGenericTaskGui):
         self.ui.imageView.close()
         DAQGenericTaskGui.quit(self)
         
+
+class CameraParamGroup(pg.parametertree.parameterTypes.GroupParameter):
+    def __init__(self, name, camera):
+        self.camera = camera
+        self.camParams = camera.listParams()
+
+        pg.parametertree.parameterTypes.GroupParameter.__init__(self, name=name, addList=list(self.camParams.keys()))
+
+    def addNew(self, param):
+        spec = makeParameterTreeSpec(self.camera, param, self.camParams[param])
+        self.addChild(pg.parametertree.Parameter.create(**spec))

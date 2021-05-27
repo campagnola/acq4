@@ -198,7 +198,6 @@ class FileHandle(Qt.QObject):
         
     def getFile(self, fn):
         return getFileHandle(os.path.join(self.name(), fn))
-        
 
     def __repr__(self):
         return "<%s '%s' (0x%x)>" % (self.__class__.__name__, self.name(), self.__hash__())
@@ -373,10 +372,16 @@ class FileHandle(Qt.QObject):
             return typ
 
     def emitChanged(self, change, *args):
+        import traceback
+        print(args)
+        traceback.print_stack()
         self.delayedChanges.append(change)
         self.sigChanged.emit(self, change, args)
 
     def delayedChange(self, args):
+        import traceback
+        print(args)
+        traceback.print_stack()
         changes = list(set(self.delayedChanges))
         self.delayedChanges = []
         self.sigDelayedChange.emit(self, changes)

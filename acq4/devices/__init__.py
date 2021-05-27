@@ -2,8 +2,8 @@ from __future__ import print_function
 
 from collections import OrderedDict
 from importlib import import_module
-
 from . import Device
+from acq4.util.debug import logExc
 
 
 def getDeviceClass(name):
@@ -21,7 +21,7 @@ def getDeviceClass(name):
             import_module('acq4.devices.' + name)
             devClasses = getDeviceClasses()
         except ImportError as exc:
-            print("Warning: error importing device class %s: %s" % (name, str(exc)))
+            logExc("Warning: error importing device class %s: %s" % (name, str(exc)))
 
     try:
         clsName = name.split(".")[-1]

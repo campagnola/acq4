@@ -85,10 +85,11 @@ class HomeMotionPlanner(PipetteMotionPlanner):
 
 
 class SearchMotionPlanner(PipetteMotionPlanner):
-    """Focus the microscope 2mm above the surface, then move the electrode 
-    tip to 500um below the focal point of the microscope. 
+    """Focus the microscope above the surface, then move the electrode
+    tip close to the camera center above the surface (but possibly at a
+    different height).
 
-    This position is used when searching for new electrodes.
+    This position is used when searching for new pipette tips.
 
     Set *distance* to adjust the search position along the pipette's x-axis. Positive values
     move the tip farther from the microscope center to reduce the probability of collisions.
@@ -100,7 +101,7 @@ class SearchMotionPlanner(PipetteMotionPlanner):
         speed = self.speed
         distance = self.kwds.get('distance', 0)
 
-        # Bring focus to 2mm above surface (if needed)
+        # Bring focus above surface (if needed)
         scope = pip.scopeDevice()
         surfaceDepth = scope.getSurfaceDepth()
         if surfaceDepth is None:
