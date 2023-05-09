@@ -53,8 +53,8 @@ def messageHandler(*args):
         msgType, msg = args
     else:  # Qt5
         msgType, context, msg = args
-    # ignore harmless ibus messages on linux
-    if 'ibus-daemon' in msg:
+    # ignore harmless messages on linux
+    if 'ibus-daemon' in msg or msg.startswith('QXcbConnection: XCB error: 3 (BadWindow)'):
         return
     import traceback
     print("Qt Error: (traceback follows)")

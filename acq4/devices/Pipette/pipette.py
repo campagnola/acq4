@@ -134,6 +134,12 @@ class Pipette(Device, OptomechDevice):
 
         deviceManager.sigAbortAll.connect(self.stop)
 
+    @property
+    def pipetteDevice(self):
+        """Return self. Used for compatibility with PatchPipette.
+        """
+        return self
+
     def moveTo(self, position, speed, raiseErrors=False, **kwds):
         """Move the pipette tip to a named position, with safe motion planning.
 
@@ -483,6 +489,14 @@ class Pipette(Device, OptomechDevice):
         """
         man = getManager()
         return [man.getDevice(d) for d in self.config.get('recordingChambers', [])]
+
+    def isPositionReachable(self, position) -> bool:
+        """Return a bool indicating whether this pipette tip can reach the global *position* given.
+        """
+        for chamber in self.getRecordingChambers():
+            if chamber.containsPoint(position):
+                return True
+        return False
 
 
 class PipetteCamModInterface(CameraModuleInterface):
