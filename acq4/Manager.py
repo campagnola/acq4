@@ -12,7 +12,7 @@ The class is responsible for:
 """
 import atexit
 import gc
-import getopt
+import argparse
 import os
 import sys
 import time
@@ -66,6 +66,7 @@ class Manager(Qt.QObject):
     single = None
 
     def __init__(self, configFile=None, argv=None):
+        Qt.QObject.__init__(self)
         self.lock = Mutex(recursive=True)  ## used for keeping some basic methods thread-safe
         # self.devices = OrderedDict()  # all currently loaded devices
         self.modules = OrderedDict()  # all currently running modules
@@ -83,126 +84,111 @@ class Manager(Qt.QObject):
         self.taskLock = Mutex(Qt.QMutex.Recursive)
         self._folderTypes = None
 
+        if Manager.CREATED:
+            raise Exception("Manager object already created!")
+
+        Manager.CREATED = True
+        Manager.single = self
+
+        self.logWindow = createLogWindow(self)
+        self.documentation = Documentation()
+        self.interfaceDir = InterfaceDirectory()
+        
+        if argv is not None:
+            parser = argparse.ArgumentParser(prog="ACQ4")
+            parser.add_argument('-c', '--config', type=str, default=None, metavar='CONFIG_FILE', help='Configuration file to load')
+            parser.add_argument('-a', '--config-name', type=str, action='append', default=[], help='Named configuration (defined inside configuration file) to load. May be given multiple times.')
+            parser.add_argument('-m', '--module', type=str, action='append', default=[], help='Module name to load. May be given multiple times.')
+            parser.add_argument('-b', '--base-dir', type=str, default=None, help='Base directory to use for data storage (the root of our data storage tree)')
+            parser.add_argument('-s', '--storage-dir', type=str, default=None, help='Initial storage directory to use')
+            parser.add_argument('-n', '--no-manager', action='store_true', default=False, help='Do not load the manager module')
+            parser.add_argument('-d', '--disable', type=str, action='append', default=[], help='Disable the device specified. May be given multiple times.')
+            parser.add_argument('-D', '--disable-all', action='store_true', default=False, help='Disable all configured devices')
+            parser.add_argument('-x', '--exit-on-error', action='store_true', default=False, help='Exit immediately on the first exception during initial Manager setup')
+        cliargs = parser.parse_args(argv)
+
+        atexit.register(self.quit)
+
+        # Import all built-in module classes
+        modules.importBuiltinClasses()
+
+        ## Handle command line options
+        setBaseDir = None
+        setStorageDir = None
+        loadManager = True
+        if configFile is None:
+            configFile = cliargs.config
+        loadConfigs = cliargs.config_name
+        loadModules = cliargs.module
+        setBaseDir = cliargs.base_dir
+        setStorageDir = cliargs.storage_dir
+        loadManager = not cliargs.no_manager
+        self.disableDevs = cliargs.disable
+        self.disableAllDevs = cliargs.disable_all
+        self.exitOnError = cliargs.exit_on_error
+
+        ## Read in configuration file
+        if configFile is None:
+            configFile = self._getConfigFile()
+
+        self.configDir = os.path.dirname(configFile)
+
         try:
-            if Manager.CREATED:
-                raise Exception("Manager object already created!")
-
-            Manager.CREATED = True
-            Manager.single = self
-
-            self.logWindow = createLogWindow(self)
-
-            self.documentation = Documentation()
-
-            if argv is not None:
-                try:
-                    opts, args = getopt.getopt(
-                        argv, 'c:a:x:m:b:s:d:nD',
-                        ['config=', 'config-name=', 'module=', 'base-dir=', 'storage-dir=',
-                         'disable=', 'no-manager', 'disable-all', 'exit-on-error'])
-                except getopt.GetoptError as err:
-                    print(str(err))
-                    print("""
-    Valid options are:
-        -x --exit-on-error Whether to exit immidiately on the first exception during initial Manager setup
-        -c --config=       Configuration file to load
-        -a --config-name=  Named configuration to load
-        -m --module=       Module name to load
-        -b --base-dir=     Base directory to use
-        -s --storage-dir=  Storage directory to use
-        -n --no-manager    Do not load manager module
-        -d --disable=      Disable the device specified
-        -D --disable-all   Disable all devices
-    """)
-                    raise
-            else:
-                opts = []
-
-            Qt.QObject.__init__(self)
-            atexit.register(self.quit)
-            self.interfaceDir = InterfaceDirectory()
-
-            # Import all built-in module classes
-            modules.importBuiltinClasses()
-
-            ## Handle command line options
-            loadModules = []
-            setBaseDir = None
-            setStorageDir = None
-            loadManager = True
-            loadConfigs = []
-            for o, a in opts:
-                if o in ['-c', '--config']:
-                    configFile = a
-                elif o in ['-a', '--config-name']:
-                    loadConfigs.append(a)
-                elif o in ['-m', '--module']:
-                    loadModules.append(a)
-                elif o in ['-b', '--baseDir']:
-                    setBaseDir = a
-                elif o in ['-s', '--storageDir']:
-                    setStorageDir = a
-                elif o in ['-n', '--noManager']:
-                    loadManager = False
-                elif o in ['-d', '--disable']:
-                    self.disableDevs.append(a)
-                elif o in ['-D', '--disable-all']:
-                    self.disableAllDevs = True
-                elif o == "--exit-on-error":
-                    self.exitOnError = True
-                else:
-                    print("Unhandled option", o, a)
-
-            ## Read in configuration file
-            if configFile is None:
-                configFile = self._getConfigFile()
-
-            self.configDir = os.path.dirname(configFile)
             self.readConfig(configFile)
+        except Exception:
+            print("Error while configuring Manager:")
+            raise
 
-            logMsg('ACQ4 version %s started.' % __version__, importance=9)
+        logMsg('ACQ4 version %s started.' % __version__, importance=9)
 
-            ## Act on options if they were specified..
-            try:
-                for name in loadConfigs:
-                    self.loadDefinedConfig(name)
-
-                if setBaseDir is not None:
-                    self.setBaseDir(setBaseDir)
-                if setStorageDir is not None:
-                    self.setCurrentDir(setStorageDir)
-                if loadManager:
-                    self.showGUI()
-                    self.createWindowShortcut('F1', self.gui.win)
-                for m in loadModules:
-                    try:
-                        if m in self.definedModules:
-                            self.loadDefinedModule(m)
-                        else:
-                            self.loadModule(m)
-                    except:
-                        if not loadManager:
-                            self.showGUI()
-                        raise
-
-            except:
-                printExc("\nError while acting on command line options: (but continuing on anyway..)")
-                if self.exitOnError:
-                    raise
-
-        except:
-            printExc("Error while configuring Manager:")
-            Manager.CREATED = False
-            Manager.single = None
+        def maybeRaise(exc, msg):
             if self.exitOnError:
-                raise
+                print(msg)
+                raise exc
+            else:
+                printExc(msg + "  (but continuing on anyway..)")
 
-        finally:
-            if len(self.modules) == 0:
-                self.quit()
-                raise Exception("No modules loaded during startup, exiting now.")
+        ## Act on options if they were specified..
+        for name in loadConfigs:
+            try:
+                self.loadDefinedConfig(name)
+            except Exception as exc:
+                maybeRaise(exc, f"\nError loading defined config: {name}")
 
-        win = self.modules[list(self.modules.keys())[0]].window()
+        if setBaseDir is not None:
+            try:
+                self.setBaseDir(setBaseDir)
+            except Exception as exc:
+                maybeRaise(exc, f"\nCould not set base dir: {setBaseDir}")
+                
+        if setStorageDir is not None:
+            try:
+                self.setCurrentDir(setStorageDir)
+            except Exception as exc:
+                maybeRaise(exc, f"\nCould not set storage dir: {setStorageDir}")
+                
+        if loadManager:
+            try:
+                self.showGUI()
+                self.createWindowShortcut('F1', self.gui.win)
+            except Exception as exc:
+                maybeRaise(exc, f"\nError showing manager module")
+
+        for m in loadModules:
+            try:
+                if m in self.definedModules:
+                    self.loadDefinedModule(m)
+                else:
+                    self.loadModule(m)
+            except Exception as exc:
+                maybeRaise(exc, f"\nError loading module {m}")
+
+            
+        if len(self.modules) == 0:
+            self.quit()
+            raise Exception("No modules loaded during startup, exiting now.")
+
+        win = next(iter(self.modules.values())).window()
         self.quitShortcut = Qt.QShortcut(Qt.QKeySequence('Ctrl+q'), win)
         self.quitShortcut.setContext(Qt.Qt.ApplicationShortcut)
         self.abortShortcut = Qt.QShortcut(Qt.QKeySequence('Esc'), win)
@@ -674,11 +660,11 @@ class Manager(Qt.QObject):
         """
         Return a directory handle to the currently-selected directory for data storage.
         """
-        with self.lock:
-            if self.currentDir is None:
-                raise HelpfulException("Storage directory has not been set.",
-                                       docs=["userGuide/modules/DataManager.html#acquired-data-storage"])
-            return self.currentDir
+        cdir = self.currentDir
+        if cdir is None:
+            raise HelpfulException("Storage directory has not been set.",
+                                    docs=["userGuide/modules/DataManager.html#acquired-data-storage"])
+        return self.cdir
 
     def setLogDir(self, d):
         """
@@ -697,7 +683,7 @@ class Manager(Qt.QObject):
                 pass
 
         if isinstance(d, six.string_types):
-            self.currentDir = self.baseDir.getDir(d, create=True)
+            self.currentDir = self.getBaseDir().getDir(d, create=True)
         elif isinstance(d, DataManager.DirHandle):
             self.currentDir = d
         else:
@@ -730,8 +716,11 @@ class Manager(Qt.QObject):
         This is the highest-level directory where acquired data may be stored. If 
         the base directory has not been set, return None.
         """
-        with self.lock:
-            return self.baseDir
+        bdir = self.baseDir
+        if bdir is None:
+            raise HelpfulException("Base storage directory has not been set.",
+                                    docs=["userGuide/modules/DataManager.html#acquired-data-storage"])
+        return bdir
 
     def setBaseDir(self, d):
         """
