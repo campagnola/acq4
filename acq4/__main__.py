@@ -1,4 +1,8 @@
-from .startup import startACQ4Application
+if __package__ is None:
+    import acq4
+    __package__ = 'acq4'
+
+from .startup import startAcq4Application
 
 
-startACQ4Application()
+startAcq4Application()

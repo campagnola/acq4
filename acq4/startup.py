@@ -1,19 +1,35 @@
+import sys, os, logging
+import acq4
+import acq4.util.logging
+
+logger = logging.getLogger(__name__)
+
+
 def startAcq4Application():
     """Start up ACQ4 main application
     """
+    global man, gc, logWindow, app, timer
 
-    print("Loading ACQ4...")
-    import os, sys
+    # Import pyqtgraph, get QApplication instance
+    import pyqtgraph as pg
+    app = pg.mkQApp()
 
-    if __package__ is None:
-        import acq4
+    rootlogger = logging.getLogger()
+    rootlogger.setLevel(logging.INFO)
 
-        __package__ = 'acq4'
+    # start logging
+    logWindow = acq4.util.logging.LogWindow()
+    logWindow.attachToLogger('')
+    logWindow.setUpdating(True)
+    logWindow.show()
 
+    logger.info(f"Loading ACQ4 {acq4.__version__}...")
+
+    # Initialize Qt
     from .util import Qt
-    from .Manager import Manager
-    from .util.debug import installExceptionHandler
 
+    from .Manager import Manager
+    from .util.logging import installExceptionHandler
 
     # Pull some args out
     if "--profile" in sys.argv:
@@ -31,15 +47,6 @@ def startAcq4Application():
     from .util.debug import enableFaulthandler
 
     enableFaulthandler()
-
-
-    # Initialize Qt
-    from .util import Qt
-
-    # Import pyqtgraph, get QApplication instance
-    import pyqtgraph as pg
-
-    app = pg.mkQApp()
 
     ## Install a simple message handler for Qt errors:
     def messageHandler(*args):
@@ -74,19 +81,15 @@ def startAcq4Application():
             except:
                 pass
 
-
     try:
         pg.QtCore.qInstallMsgHandler(messageHandler)
     except AttributeError:
         pg.QtCore.qInstallMessageHandler(messageHandler)
 
 
-
-
     ## Prevent Windows 7 from grouping ACQ4 windows under a single generic python icon in the taskbar
     if sys.platform == 'win32':
         import ctypes
-
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('ACQ4')
 
     # Enable exception handling
@@ -129,20 +132,15 @@ def startAcq4Application():
     timer.start(1000)
 
     ## Start Qt event loop unless running in interactive mode.
-    import pyqtgraph as pg
+    logWindow.setUpdating(False)
+    logWindow.hide()
 
     interactive = (sys.flags.interactive == 1) and not pg.Qt.USE_PYSIDE
     if interactive:
         print("Interactive mode; not starting event loop.")
 
-        ## import some things useful on the command line
-        from .util.debug import *
-        from .util import functions as fn
-        import numpy as np
-
         ### Use CLI history and tab completion
         import atexit
-        import os
 
         historyPath = os.path.expanduser("~/.pyhistory")
         try:

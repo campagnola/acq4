@@ -1,8 +1,7 @@
-import os
-import sys
-from .util import pg_setup
+import os, sys
+from .util import pg_setup  # imported for side-effects
 
-__version__ = '0.9.3'
+__version__ = '1.0'
 
 # If we are running from a git repo, generate a more descriptive version number
 from .util.gitversion import getGitVersion

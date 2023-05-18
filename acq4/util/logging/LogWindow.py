@@ -1,22 +1,13 @@
 import os
+import logging
 import re
-import subprocess
 import sys
 import traceback
 import weakref
 from datetime import datetime
 from threading import RLock
 from typing import Union, Optional
-
 import numpy as np
-import six
-from six.moves import map
-from six.moves import range
-
-if __name__ == "__main__":
-    libdir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    sys.path = [os.path.join(libdir, "lib", "util")] + sys.path + [libdir]
-
 import pyqtgraph.configfile as configfile
 from acq4.util import Qt
 from acq4.util.DataManager import DirHandle
@@ -25,6 +16,8 @@ from acq4.util.debug import printExc
 from acq4.util.codeEditor import invokeCodeEditor
 from pyqtgraph import FeedbackButton
 from pyqtgraph import FileDialog
+
+
 
 LogWidgetTemplate = Qt.loadUiType(os.path.join(os.path.dirname(__file__), "LogWidgetTemplate.ui"))[0]
 
@@ -36,6 +29,8 @@ Stylesheet = """
     .warning .message {color: #740}
     .user .message {color: #009}
     .status .message {color: #090}
+    .info .message {color: #444}
+    .debug .message {color: #777}
     .logExtra {margin-left: 40px;}
     .traceback {color: #555; height: 0px;}
     .timestamp {color: #000;}
@@ -62,16 +57,23 @@ pageTemplate = f"""
 """
 
 
-WIN: Optional["LogWindow"] = None
+def __reload__(old):
+    # preserve old log window on reload
+    LogWindow.instance = old["LogWindow"].instance
+
 
 
 class LogButton(FeedbackButton):
+    """Button that shows the LogWindow when clicked and changes color when a new, unseen error has been logged
+    """
     def __init__(self, *args):
         FeedbackButton.__init__(self, *args)
 
-        global WIN
-        self.clicked.connect(WIN.show)
-        WIN.buttons.append(weakref.ref(self))
+        self.clicked.connect(self.showLogWindow)
+        LogWindow.instance.buttons.append(weakref.ref(self))
+
+    def showLogWindow(self):
+        LogWindow.instance.show()
 
 
 class LogWindow(Qt.QMainWindow):
@@ -82,28 +84,33 @@ class LogWindow(Qt.QMainWindow):
     Messages can be logged by calling logMsg or logExc functions from acq4.Manager. These functions call the
     LogWindow.logMsg and LogWindow.logExc functions, but other classes should not call the LogWindow functions
     directly.
-    
     """
 
     sigLogMessage = Qt.Signal(object)
+    
+    instance = None
 
-    def __init__(self, manager):
-        global WIN
+    def __init__(self):
+        assert LogWindow.instance is None
+        LogWindow.instance = self
+        
         Qt.QMainWindow.__init__(self)
-        WIN = self
         self.setWindowTitle("Log")
         path = os.path.dirname(__file__)
         self.setWindowIcon(Qt.QIcon(os.path.join(path, "logIcon.png")))
-        self.wid = LogWidget(self, manager)
+        self.wid = LogWidget(self)
         self.wid.ui.input = Qt.QLineEdit()
         self.wid.ui.gridLayout.addWidget(self.wid.ui.input, 2, 0, 1, 3)
         self.wid.ui.dirLabel.setText("Current Storage Directory: None")
         self.setCentralWidget(self.wid)
         self.resize(1000, 500)
-        self.manager = manager
         self.entriesSaved = 0
         self.entriesVisible = 0
         self.logFile = None
+
+        self.handler = LogWindowHandler()
+        self.handler.setLevel(0)
+
         # start a new temp log file, destroying anything left over from the last session.
         configfile.writeConfigFile("", self.fileName())
         # weak references to all Log Buttons get added to this list, so it's easy to make them all do things, like flash red.
@@ -114,15 +121,30 @@ class LogWindow(Qt.QMainWindow):
         self.wid.ui.input.returnPressed.connect(self.textEntered)
         self.sigLogMessage.connect(self.queuedLogMsg, Qt.Qt.QueuedConnection)
 
+    def attachToLogger(self, logger=''):
+        if isinstance(logger, str):
+            logger = logging.getLogger(logger)
+        logger.addHandler(self.handler)
+
+    def setUpdating(self, updating):
+        """If True, update the logger (by calling QQpplication.processEvents) whenever a new message arrives.
+        """
+        self.wid.redrawOnUpdate = updating
+
     def queuedLogMsg(self, args):  # called indirectly when logMsg is called from a non-gui thread
         self.logMsg(*args[0], **args[1])
 
     def logMsg(self, msg, importance=5, msgType="status", **kwargs):
         """
-        msg: the text of the log message
-        msgTypes: user, status, error, warning (status is default)
-        importance: 0-9 (0 is low importance, 9 is high, 5 is default)
-        other keywords:
+        Parameters
+        ----------
+        msg : str
+            The text of the log message
+        msgType : str
+            user, status, error, warning, info, debug ('status' is default)
+        importance : int
+            0-9 (0 is low importance, 9 is high, 5 is default)
+        kwargs:
           exception: a tuple (type, exception, traceback) as returned by sys.exc_info()
           excInfo: an object with attributes exc_type, exc_value, exc_traceback, and thread
           docs: a list of strings where documentation related to the message can be found
@@ -148,7 +170,7 @@ class LogWindow(Qt.QMainWindow):
         else:
             kwargs["currentDir"] = None
 
-        now = datetime.now().astimezone().isoformat()
+        now = datetime.now().astimezone().strftime('%Y-%m-%d %H:%M:%S')
         saveName = f"LogEntry_{self.entriesSaved}"
         with self.lock:
             self.entriesSaved += 1
@@ -205,7 +227,7 @@ class LogWindow(Qt.QMainWindow):
             entry["exception"] = None
 
     def textEntered(self):
-        msg = six.text_type(self.wid.ui.input.text())
+        msg = str(self.wid.ui.input.text())
         if msg == "!!":
             self.makeError1()
         elif msg == "##":
@@ -351,10 +373,9 @@ class LogWidget(Qt.QWidget):
     sigAddEntry = Qt.Signal(object)  # for thread-safetyness
     sigScrollToAnchor = Qt.Signal(object)  # for internal use.
 
-    def __init__(self, parent, manager):
+    def __init__(self, parent=None):
         Qt.QWidget.__init__(self, parent)
         self.ui = LogWidgetTemplate()
-        self.manager = manager
         self.ui.setupUi(self)
         self.ui.filterTree.topLevelItem(1).setExpanded(True)
 
@@ -364,6 +385,7 @@ class LogWidget(Qt.QWidget):
         self.typeFilters = []
         self.importanceFilter = 0
         self.dirFilter = False
+        self.redrawOnUpdate = False
         self.entryArrayBuffer = np.zeros(
             1000,
             dtype=[  # a record array for quick filtering of entries
@@ -460,6 +482,8 @@ class LogWidget(Qt.QWidget):
         self.entryArray = self.entryArrayBuffer[: len(self.entryArray) + 1]
         self.entryArray[i] = arr
         self.checkDisplay(entry)  # displays the entry if it passes the current filters
+        if self.redrawOnUpdate:
+            Qt.QApplication.instance().processEvents(Qt.QEventLoop.ExcludeUserInputEvents)
 
     def setCheckStates(self, item, column):
         if item == self.ui.filterTree.topLevelItem(1):
@@ -480,7 +504,7 @@ class LogWidget(Qt.QWidget):
             child = tree.topLevelItem(1).child(i)
             if tree.topLevelItem(1).checkState(0) or child.checkState(0):
                 text = child.text(0)
-                self.typeFilters.append(six.text_type(text))
+                self.typeFilters.append(str(text))
 
         self.importanceFilter = self.ui.importanceSlider.value()
 
@@ -500,17 +524,17 @@ class LogWidget(Qt.QWidget):
     def filterEntries(self):
         """Runs each entry in self.entries through the filters and displays if it makes it through."""
         # make self.entries a record array, then filtering will be much faster (to OR true/false arrays, + them)
-        typeMask = self.entryArray["msgType"] == ""
+        typeMask = self.entryArray["msgType"] == b""
         for t in self.typeFilters:
-            typeMask += self.entryArray["msgType"] == t
-        mask = (self.entryArray["importance"] > self.importanceFilter) * typeMask
+            typeMask += self.entryArray["msgType"] == t.encode()
+        mask = (self.entryArray["importance"] > self.importanceFilter) & typeMask
         if self.dirFilter is not False:
             _d = np.ascontiguousarray(self.entryArray["directory"])
             j = len(self.dirFilter)
             i = len(_d)
             _d = _d.view(np.byte).reshape(i, 100)[:, :j]
             _d = _d.reshape(i * j).view("|S%d" % j)
-            mask *= _d == self.dirFilter
+            mask &= _d == self.dirFilter
 
         self.ui.output.clear()
         global Stylesheet
@@ -886,6 +910,12 @@ class ErrorDialog(Qt.QDialog):
 
     def disable(self, disable):
         self.disableCheck.setChecked(disable)
+
+
+class LogWindowHandler(logging.Handler):
+    
+    def handle(self, record):
+        LogWindow.instance.logMsg(record.msg, importance=record.levelno//5, msgType=record.levelname.lower())
 
 
 if __name__ == "__main__":

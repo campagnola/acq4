@@ -194,6 +194,28 @@
             <set>ItemIsUserCheckable|ItemIsEnabled</set>
            </property>
           </item>
+          <item>
+           <property name="text">
+            <string>info</string>
+           </property>
+           <property name="checkState">
+            <enum>Checked</enum>
+           </property>
+           <property name="flags">
+            <set>ItemIsUserCheckable|ItemIsEnabled</set>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>debug</string>
+           </property>
+           <property name="checkState">
+            <enum>Checked</enum>
+           </property>
+           <property name="flags">
+            <set>ItemIsUserCheckable|ItemIsEnabled</set>
+           </property>
+          </item>
          </item>
         </widget>
        </item>

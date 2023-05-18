@@ -33,7 +33,7 @@ from .Interfaces import InterfaceDirectory
 from .devices.Device import Device, DeviceTask
 from .util import DataManager, ptime, Qt
 from .util.HelpfulException import HelpfulException
-from .util.debug import logExc, logMsg, createLogWindow
+from .util.debug import logExc, logMsg
 
 _ = logExc  # prevent cleanup of logExc; needed by debug
 
@@ -65,7 +65,7 @@ class Manager(Qt.QObject):
     CREATED = False
     single = None
 
-    def __init__(self, configFile=None, argv=None):
+    def __init__(self, configFile=None, argv=None, logWindow=None):
         Qt.QObject.__init__(self)
         self.lock = Mutex(recursive=True)  ## used for keeping some basic methods thread-safe
         # self.devices = OrderedDict()  # all currently loaded devices
@@ -90,7 +90,7 @@ class Manager(Qt.QObject):
         Manager.CREATED = True
         Manager.single = self
 
-        self.logWindow = createLogWindow(self)
+        self.logWindow = logWindow
         self.documentation = Documentation()
         self.interfaceDir = InterfaceDirectory()
         

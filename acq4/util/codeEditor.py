@@ -1,5 +1,4 @@
 import sys, glob, os, subprocess
-from acq4 import getManager
 
 
 suggestedEditorOrder = ['vscode', 'sublime', 'pycharm']
@@ -63,6 +62,7 @@ def codeEditorCommand():
             misc:
                 codeEditor: r'"C:\Program Files\MyEditor\editor.exe" {{fileName}}:{{lineNum}}'
     """
+    from acq4 import getManager
     man = getManager()
     cmd = man.config.get('misc', {}).get('codeEditor', None)
     if cmd is None:
