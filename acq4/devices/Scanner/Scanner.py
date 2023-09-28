@@ -51,7 +51,7 @@ class Scanner(Device, OptomechDevice):
             if self.getShutterOpen():
                 self._setVoltage(vals)
             else:
-                logMsg("Virtual shutter closed, not setting mirror position.", msgType='warning')
+                logMsg("Virtual shutter closed, not setting mirror position.", 'warning')
 
     def setPosition(self, pos, laser):
         """Set the position of the xy mirrors to a point in the image
@@ -193,13 +193,13 @@ class Scanner(Device, OptomechDevice):
         if laser in index:
             index1 = index[laser]
         else:
-            logMsg("Warning: No calibration found for laser %s" % laser, msgType='warning')
+            logMsg("Warning: No calibration found for laser %s" % laser, 'warning')
             return None
             
         if opticState in index1:
             index2 = index1[opticState]
         else:
-            logMsg("Warning: No calibration found for state: %s" % opticState, msgType='warning')
+            logMsg("Warning: No calibration found for state: %s" % opticState, 'warning')
             return None
         
         return index2.copy()

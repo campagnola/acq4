@@ -134,22 +134,22 @@ class LogWindow(Qt.QMainWindow):
     def queuedLogMsg(self, args):  # called indirectly when logMsg is called from a non-gui thread
         self.logMsg(*args[0], **args[1])
 
-    def logMsg(self, msg, importance=5, msgType="status", **kwargs):
+    def logMsg(self, msg, level='info', **kwargs):
         """
         Parameters
         ----------
         msg : str
             The text of the log message
-        msgType : str
-            user, status, error, warning, info, debug ('status' is default)
-        importance : int
-            0-9 (0 is low importance, 9 is high, 5 is default)
+        level : str | int
+            Log message importance level. May be an integer 0-50 or a string. Accepted strings are debug (10), 
+            info (20), warning (30), error (40), critical (50). 
+            See https://docs.python.org/3/library/logging.html#levels
         kwargs:
           exception: a tuple (type, exception, traceback) as returned by sys.exc_info()
           excInfo: an object with attributes exc_type, exc_value, exc_traceback, and thread
           docs: a list of strings where documentation related to the message can be found
           reasons: a list of reasons (as strings) for the message
-          traceback: a list of formatted callstack/trackback objects (formatting a traceback/callstack returns a
+          traceback: a list of formatted callstack/traceback objects (formatting a traceback/callstack returns a
               list of strings), usually looks like [['line 1', 'line 2', 'line3'], ['line1', 'line2']]
            Feel free to add your own keyword arguments. These will be saved in the log.txt file, but will not affect the
            content or way that messages are displayed.
@@ -158,7 +158,7 @@ class LogWindow(Qt.QMainWindow):
         # for thread-safetyness:
         isGuiThread = Qt.QThread.currentThread() == Qt.QCoreApplication.instance().thread()
         if not isGuiThread:
-            self.sigLogMessage.emit(((msg, importance, msgType), kwargs))
+            self.sigLogMessage.emit(((msg, level), kwargs))
             return
 
         try:
@@ -179,8 +179,7 @@ class LogWindow(Qt.QMainWindow):
             entry = {
                 "message": msg,
                 "timestamp": now,
-                "importance": importance,
-                "msgType": msgType,
+                "level": level,
                 "id": self.entriesVisible,
             }
         for k in kwargs:
@@ -189,13 +188,13 @@ class LogWindow(Qt.QMainWindow):
         self.processEntry(entry)
 
         # Allow exception to override values in the entry
-        if entry.get("exception", None) is not None and "msgType" in entry["exception"]:
-            entry["msgType"] = entry["exception"]["msgType"]
+        if entry.get("exception", None) is not None and "level" in entry["exception"]:
+            entry["level"] = entry["exception"]["level"]
 
         self.saveEntries({saveName: {**entry, "id": savedId}})
         self.wid.addEntry(entry)  # takes care of displaying the entry if it passes the current filters on the logWidget
 
-        if entry["msgType"] == "error" and self.errorDialog.show(entry) is False:
+        if entry["level"] >= logging.ERROR and self.errorDialog.show(entry) is False:
             self.flashButtons()
 
     def logExc(self, *args, **kwargs):
@@ -236,7 +235,7 @@ class LogWindow(Qt.QMainWindow):
             currentDir = self.manager.getCurrentDir()
         except:
             currentDir = None
-        self.logMsg(msg, importance=8, msgType="user", currentDir=currentDir)
+        self.logMsg(msg, level='warning', currentDir=currentDir)
         self.wid.ui.input.clear()
 
     def exceptionToDict(self, exType, exc, tb, thread, topTraceback):
@@ -282,7 +281,7 @@ class LogWindow(Qt.QMainWindow):
         try:
             raise NameError("name 'y' is not defined")
         except:
-            self.logExc("This is the message sent to logExc", msgType="error")
+            self.logExc("This is the message sent to logExc", level="error")
 
     def makeError2(self):
         try:
@@ -372,6 +371,12 @@ class LogWidget(Qt.QWidget):
     sigDisplayEntry = Qt.Signal(object)  # for thread-safetyness
     sigAddEntry = Qt.Signal(object)  # for thread-safetyness
     sigScrollToAnchor = Qt.Signal(object)  # for internal use.
+    logDType = [
+        ("index", "int32"),
+        ("level", "int32"),
+        ("directory", "|S100"),
+        ("entryId", "int32"),
+    ]
 
     def __init__(self, parent=None):
         Qt.QWidget.__init__(self, parent)
@@ -383,18 +388,12 @@ class LogWidget(Qt.QWidget):
         self.cache = {}  # for storing html strings of entries that have already been processed
         self.displayedEntries = []
         self.typeFilters = []
-        self.importanceFilter = 0
+        self.levelFilter = 0
         self.dirFilter = False
         self.redrawOnUpdate = False
         self.entryArrayBuffer = np.zeros(
             1000,
-            dtype=[  # a record array for quick filtering of entries
-                ("index", "int32"),
-                ("importance", "int32"),
-                ("msgType", "|S10"),
-                ("directory", "|S100"),
-                ("entryId", "int32"),
-            ],
+            dtype=self.logDType,  # a record array for quick filtering of entries
         )
         self.entryArray = self.entryArrayBuffer[:0]
 
@@ -404,7 +403,7 @@ class LogWidget(Qt.QWidget):
         self.sigAddEntry.connect(self.addEntry, Qt.Qt.QueuedConnection)
         self.ui.exportHtmlBtn.clicked.connect(self.exportHtml)
         self.ui.filterTree.itemChanged.connect(self.setCheckStates)
-        self.ui.importanceSlider.valueChanged.connect(self.filtersChanged)
+        self.ui.levelSlider.valueChanged.connect(self.filtersChanged)
         self.ui.output.anchorClicked.connect(self.linkClicked)
         self.sigScrollToAnchor.connect(self.scrollToAnchor, Qt.Qt.QueuedConnection)
 
@@ -412,16 +411,7 @@ class LogWidget(Qt.QWidget):
         """Load the file, f. f must be able to be read by configfile.py"""
         logConf = configfile.readConfigFile(f)
         self.entries = []
-        self.entryArrayBuffer = np.zeros(
-            len(logConf),
-            dtype=[
-                ("index", "int32"),
-                ("importance", "int32"),
-                ("msgType", "|S10"),
-                ("directory", "|S100"),
-                ("entryId", "int32"),
-            ],
-        )
+        self.entryArrayBuffer = np.zeros(len(logConf), dtype=self.logDType)
         self.entryArray = self.entryArrayBuffer[:]
 
         for i, (k, v) in enumerate(logConf.items()):
@@ -431,19 +421,12 @@ class LogWidget(Qt.QWidget):
                 [
                     (
                         i,
-                        v.get("importance", 5),
-                        v.get("msgType", "status"),
+                        v.get("level", 5),
                         v.get("currentDir", ""),
                         v.get("entryId", v["id"]),
                     )
                 ],
-                dtype=[
-                    ("index", "int32"),
-                    ("importance", "int32"),
-                    ("msgType", "|S10"),
-                    ("directory", "|S100"),
-                    ("entryId", "int32"),
-                ],
+                dtype=self.logDType,
             )
         self.filterEntries()  # puts all entries through current filters and displays the ones that pass
 
@@ -464,14 +447,8 @@ class LogWidget(Qt.QWidget):
             entryDir = ""
 
         arr = np.array(
-            [(i, entry["importance"], entry["msgType"], entryDir, entry["id"])],
-            dtype=[
-                ("index", "int32"),
-                ("importance", "int32"),
-                ("msgType", "|S10"),
-                ("directory", "|S100"),
-                ("entryId", "int32"),
-            ],
+            [(i, entry["level"], entryDir, entry["id"])],
+            dtype=self.logDType,
         )
 
         # make more room if needed
@@ -496,7 +473,7 @@ class LogWidget(Qt.QWidget):
         self.filtersChanged()
 
     def filtersChanged(self):
-        # Update self.typeFilters, self.importanceFilter, and self.dirFilter to reflect changes.
+        # Update self.typeFilters, self.levelFilter, and self.dirFilter to reflect changes.
         tree = self.ui.filterTree
 
         self.typeFilters = []
@@ -506,7 +483,7 @@ class LogWidget(Qt.QWidget):
                 text = child.text(0)
                 self.typeFilters.append(str(text))
 
-        self.importanceFilter = self.ui.importanceSlider.value()
+        self.levelFilter = self.ui.levelSlider.value()
 
         self.updateDirFilter()
 
@@ -525,9 +502,7 @@ class LogWidget(Qt.QWidget):
         """Runs each entry in self.entries through the filters and displays if it makes it through."""
         # make self.entries a record array, then filtering will be much faster (to OR true/false arrays, + them)
         typeMask = self.entryArray["msgType"] == b""
-        for t in self.typeFilters:
-            typeMask += self.entryArray["msgType"] == t.encode()
-        mask = (self.entryArray["importance"] > self.importanceFilter) & typeMask
+        mask = (self.entryArray["level"] > self.levelFilter) & typeMask
         if self.dirFilter is not False:
             _d = np.ascontiguousarray(self.entryArray["directory"])
             j = len(self.dirFilter)
@@ -544,9 +519,7 @@ class LogWidget(Qt.QWidget):
 
     def checkDisplay(self, entry):
         # checks whether entry passes the current filters and displays it if it does.
-        if entry["msgType"] not in self.typeFilters:
-            return
-        elif entry["importance"] < self.importanceFilter:
+        if entry["level"] < self.levelFilter:
             return
         elif self.dirFilter is not False:
             if entry["currentDir"][: len(self.dirFilter)] != self.dirFilter:
@@ -617,7 +590,7 @@ class LogWidget(Qt.QWidget):
         </td></tr></table>
         """ % (
             str(entry["id"]),
-            entry["msgType"],
+            logging.logLevelName(entry["level"]).lower(),
             entry["timestamp"],
             msg,
             extra,
@@ -915,7 +888,7 @@ class ErrorDialog(Qt.QDialog):
 class LogWindowHandler(logging.Handler):
     
     def handle(self, record):
-        LogWindow.instance.logMsg(record.msg, importance=record.levelno//5, msgType=record.levelname.lower())
+        LogWindow.instance.logMsg(record.msg, level=record.levelno)
 
 
 if __name__ == "__main__":

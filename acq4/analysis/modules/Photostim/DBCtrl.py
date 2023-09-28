@@ -1,10 +1,8 @@
-# -*- coding: utf-8 -*-
-from __future__ import print_function
 from acq4.util import Qt
 from collections import OrderedDict
 from .Map import Map
 import acq4.util.DatabaseGui as DatabaseGui
-from acq4.Manager import logMsg, logExc
+from acq4.Manager import logMsg
 import pyqtgraph as pg
 import os
 
@@ -132,7 +130,7 @@ class DBCtrl(Qt.QWidget):
             dbui = self.host.getElement('Database')
             db = dbui.getDb()
             if db is None:
-                logMsg("No database loaded in Data Manager.", msgType='error')
+                logMsg("No database loaded in Data Manager.", 'error')
                 
             ident = self.dbIdentity+'.maps'
             table = dbui.getTableName(ident)

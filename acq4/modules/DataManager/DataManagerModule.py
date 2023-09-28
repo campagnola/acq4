@@ -235,7 +235,7 @@ class DataManager(Module):
                 parent)  ## fileTreeWidget waits a while before updating; force it to refresh immediately.
             self.ui.fileTreeWidget.select(nd)
 
-        logMsg("Created new folder: %s" % nd.name(relativeTo=self.baseDir), msgType='status', importance=7)
+        logMsg("Created new folder: %s" % nd.name(relativeTo=self.baseDir), 'info')
         self.manager.setCurrentDir(nd)
 
     def fileSelectionChanged(self):

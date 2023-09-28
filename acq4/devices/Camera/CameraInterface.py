@@ -324,14 +324,14 @@ class CameraInterface(CameraModuleInterface):
             self.setExposure(autoRestart=False)
             self.updateRegion(autoRestart=False)
             self.cam.start()
-            Manager.logMsg("Camera started aquisition.", importance=0)
+            Manager.logMsg("Camera started aquisition.", 'debug')
         except:
             self.imagingCtrl.acquisitionStopped()
             printExc("Error starting camera:")
 
     def stopAcquireClicked(self):
         self.cam.stop()
-        Manager.logMsg("Camera stopped acquisition.", importance=0)
+        Manager.logMsg("Camera stopped acquisition.", 'debug')
 
     def showMessage(self, msg, delay=2000):
         self.module.showMessage(msg, delay)

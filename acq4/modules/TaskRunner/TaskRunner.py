@@ -650,7 +650,7 @@ class TaskRunner(Module):
                 dh.flushSignals()  ## do this now rather than later when task is running
 
             self.sigTaskSequenceStarted.emit({})
-            logMsg('Started %s task sequence of length %i' % (self.currentTask.name(), pLen), importance=6)
+            logMsg('Started %s task sequence of length %i' % (self.currentTask.name(), pLen), 'info')
             # print 'PR task positions:
             future = self.taskThread.startTask(prot, paramInds)
 
@@ -982,7 +982,7 @@ class TaskThread(Thread):
             self.paramSpace = paramSpace
             self.lastRunTime = None
             self.start()  ### causes self.run() to be called from new thread
-            logMsg("Task started.", importance=1)
+            logMsg("Task started.", 'debug')
 
             return self._currentFuture
 

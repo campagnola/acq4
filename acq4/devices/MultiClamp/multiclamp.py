@@ -151,7 +151,7 @@ class MultiClamp(PatchClamp):
                 if self.lastMode is not None and state['mode'] != self._switchingToMode and state['mode'] != 'I=0':
                     # User changed the mode manually; we need to update the holding value immediately.
                     self.setHolding(state['mode'])
-                    logMsg("Warning: MultiClamp mode should be changed from ACQ4, not from the MultiClamp Commander window.", msgType='error')
+                    logMsg("Warning: MultiClamp mode should be changed from ACQ4, not from the MultiClamp Commander window.", 'error')
 
                 self.lastMode = state['mode']
                 self._switchingToMode = None

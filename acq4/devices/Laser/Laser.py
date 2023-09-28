@@ -526,7 +526,8 @@ class Laser(DAQGeneric, OptomechDevice):
                 self.updateSamplePower()
                 return powerOn
             else:
-                logMsg("No laser pulse detected by power indicator '%s' while measuring Laser.outputPower()" % powerInd[0], msgType='warning')
+                logMsg("No laser pulse detected by power indicator '%s' while measuring Laser.outputPower()" % powerInd[0], 
+                       'warning')
                 self.setParam(currentPower=0.0)
                 self.updateSamplePower()
                 return 0.0

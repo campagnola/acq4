@@ -11,16 +11,29 @@ def printExc(msg="", indent=4, prefix="|", msgType="error"):
     logExc(msg=msg, msgType=msgType)
 
 
-def logMsg(msg, **kwargs):
-    """msg: the text of the log message
-       msgTypes: user, status, error, warning (status is default)
-       importance: 0-9 (0 is low importance, 9 is high, 5 is default)
-       other supported keywords:
-          exception: a tuple (type, exception, traceback) as returned by sys.exc_info()
-          docs: a list of strings where documentation related to the message can be found
-          reasons: a list of reasons (as strings) for the message
-          traceback: a list of formatted callstack/traceback objects (formatting a traceback/callstack returns a list of strings), usually looks like [['line 1', 'line 2', 'line3'], ['line1', 'line2']]
-       Feel free to add your own keyword arguments. These will be saved in the log.txt file, but will not affect the content or way that messages are displayed.
+def logMsg(msg, *args, **kwargs):
+    """Log a message.
+    
+    Logged messages appear in the log window (unless they are filtered), are printed on the console, and
+    are written to the current log file if any exists.
+    
+    Parameters
+    ----------
+    msg : str
+        The text of the log message
+    level : str | int
+        Log message importance level. May be an integer 0-50 or a string. Accepted strings are debug (10), 
+        info (20), warning (30), error (40), critical (50). 
+        See https://docs.python.org/3/library/logging.html#levels
+    kwargs:
+        exception: a tuple (type, exception, traceback) as returned by sys.exc_info()
+        excInfo: an object with attributes exc_type, exc_value, exc_traceback, and thread
+        docs: a list of strings where documentation related to the message can be found
+        reasons: a list of reasons (as strings) for the message
+        traceback: a list of formatted callstack/traceback objects (formatting a traceback/callstack returns a
+            list of strings), usually looks like [['line 1', 'line 2', 'line3'], ['line1', 'line2']]
+        Feel free to add your own keyword arguments. These will be saved in the log.txt file, but will not affect the
+        content or way that messages are displayed.            
     """
     logger = LogWindow.instance
     if logger is None:
@@ -29,7 +42,7 @@ def logMsg(msg, **kwargs):
         return
         
     try:
-        logger.logMsg(msg, **kwargs)
+        logger.logMsg(msg, *args, **kwargs)
     except:
         print("Error logging message:")
         print("    " + "\n    ".join(msg.split("\n")))

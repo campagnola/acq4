@@ -1,11 +1,7 @@
-from __future__ import print_function
 from acq4.util import Qt
-from acq4.Manager import getManager, logExc, logMsg
-import numpy as np
-from scipy import stats
+from acq4.Manager import getManager
 from pyqtgraph.functions import siFormat
 import six
-import time
 
 Ui_Form = Qt.importTemplate('.devTemplate')
 

@@ -139,7 +139,7 @@ class Manager(Qt.QObject):
             print("Error while configuring Manager:")
             raise
 
-        logMsg('ACQ4 version %s started.' % __version__, importance=9)
+        logMsg('ACQ4 version %s started.' % __version__, 'info')
 
         def maybeRaise(exc, msg):
             if self.exitOnError:
@@ -221,7 +221,6 @@ class Manager(Qt.QObject):
 
     def readConfig(self, configFile):
         """Read configuration file, create device objects, add devices to list"""
-        print("============= Starting Manager configuration from %s =================" % configFile)
         logMsg("Starting Manager configuration from %s" % configFile)
         cfg = configfile.readConfigFile(configFile)
         self.config.update(cfg)
@@ -230,7 +229,6 @@ class Manager(Qt.QObject):
         self.configure(cfg)
 
         self.configFile = configFile
-        print("\n============= Manager configuration complete =================\n")
         logMsg('Manager configuration complete.')
 
     def exec_(self, pyfile):
@@ -289,10 +287,8 @@ class Manager(Qt.QObject):
                 elif key == 'devices':
                     for k in cfg['devices']:
                         if self.disableAllDevs or k in self.disableDevs:
-                            print("    --> Ignoring device '%s' -- disabled by request" % k)
                             logMsg("    --> Ignoring device '%s' -- disabled by request" % k)
                             continue
-                        print("  === Configuring device '%s' ===" % k)
                         logMsg("  === Configuring device '%s' ===" % k)
                         try:
                             conf = cfg['devices'][k]
@@ -300,11 +296,10 @@ class Manager(Qt.QObject):
                             if 'config' in conf:  # for backward compatibility
                                 conf = conf['config']
                             self.loadDevice(driverName, conf, k)
-                        except:
+                        except Exception:
                             printExc("Error configuring device %s:" % k)
                             if self.exitOnError:
                                 raise
-                    print("=== Device configuration complete ===")
                     logMsg("=== Device configuration complete ===")
 
                 ## Copy in new module definitions
@@ -314,8 +309,7 @@ class Manager(Qt.QObject):
 
                 ## set new storage directory
                 elif key == 'storageDir':
-                    print("=== Setting base directory: %s ===" % cfg['storageDir'])
-                    logMsg("=== Setting base directory: %s ===" % cfg['storageDir'])
+                    logMsg("=== Setting base directory: %s ===" % cfg['storageDir'], 'info')
                     self.setBaseDir(cfg['storageDir'])
 
                 elif key == 'defaultCompression':
@@ -331,7 +325,7 @@ class Manager(Qt.QObject):
                         raise Exception(
                             "'defaultCompression' option must be one of: None, 'gzip', 'szip', 'lzf', ('gzip', 0-9), or ('szip', opts). Got: '%s'" % comp)
 
-                    print("=== Setting default HDF5 compression: %s ===" % comp)
+                    logMsg("=== Setting default HDF5 compression: %s ===" % comp, 'info')
                     from MetaArray import MetaArray
                     MetaArray.defaultCompression = comp
 
@@ -352,8 +346,7 @@ class Manager(Qt.QObject):
                     elif cfg[key] is False:
                         self.logWindow.disablePopups(False)
                     else:
-                        print(
-                            "Warning: ignored config option 'disableErrorPopups'; value must be either True or False.")
+                        logMsg("Warning: ignored config option 'disableErrorPopups'; value must be either True or False.", 'warning')
 
                 elif key == 'defaultMouseMode':
                     mode = cfg[key].lower()
@@ -362,8 +355,8 @@ class Manager(Qt.QObject):
                     elif mode == 'threebutton':
                         pg.setConfigOption('leftButtonPan', True)
                     else:
-                        print(
-                            "Warning: ignored config option 'defaultMouseMode'; value must be either 'oneButton' or 'threeButton'.")
+                        logMsg(
+                            "Warning: ignored config option 'defaultMouseMode'; value must be either 'oneButton' or 'threeButton'.", 'warning')
                 elif key == 'useOpenGL':
                     pg.setConfigOption('useOpenGL', cfg[key])
 
@@ -603,10 +596,9 @@ class Manager(Qt.QObject):
         # path = os.path.split(os.path.abspath(__file__))[0]
         # path = os.path.abspath(os.path.join(path, '..'))
         path = 'acq4'
-        print("\n---- Reloading all libraries under %s ----" % path)
+        logMsg("Reloading all libraries under %s." % path, 'info')
         reload.reloadAll(debug=True)
-        print("Done reloading.\n")
-        logMsg("Reloaded all libraries under %s." % path, msgType='status')
+        logMsg("Done reloading all libraries under %s." % path, 'info')
 
     def createWindowShortcut(self, keys, win):
         ## Note: this is probably not safe to call from other threads.
@@ -699,7 +691,7 @@ class Manager(Qt.QObject):
             self.setLogDir(p)
         else:
             if logDir is None:
-                logMsg("No log directory set. Log messages will not be stored.", msgType='warning', importance=8,
+                logMsg("No log directory set. Log messages will not be stored.", 'warning',
                        docs=["userGuide/dataManagement.html#notes-and-logs"])
 
         self.currentDir.sigChanged.connect(self.currentDirChanged)
@@ -810,23 +802,23 @@ class Manager(Qt.QObject):
             with pg.ProgressDialog("Shutting down..", 0, lm + ld, cancelText=None, wait=0) as dlg:
                 self.documentation.quit()
 
-                print("Requesting all modules shut down..")
-                logMsg("Shutting Down.", importance=9)
+                logMsg("Shutting Down.", 'info')
+                logMsg("Requesting all modules shut down..", 'info')
                 while len(self.modules) > 0:  ## Modules may disappear from self.modules as we ask them to quit
                     m = list(self.modules.keys())[0]
-                    print("    %s" % m)
+                    logMsg("Closing %s" % m)
 
                     self.unloadModule(m)
                     dlg.setValue(lm - len(self.modules))
 
-                print("Requesting all devices shut down..")
+                logMsg("Requesting all devices shut down..", 'info')
                 devs = Device._deviceCreationOrder[::-1]
                 for d in devs:  # shut down in reverse order
                     d = d()
                     if d is None:
                         # device was already deleted
                         continue
-                    print("    %s" % d)
+                    logMsg("Closing %s" % d)
                     try:
                         d.quit()
                     except:
@@ -835,10 +827,10 @@ class Manager(Qt.QObject):
                             raise
                     dlg.setValue(lm + ld - len(devs))
 
-                print("Closing windows..")
+                logMsg("Closing all windows..")
                 Qt.QApplication.instance().closeAllWindows()
                 Qt.QApplication.instance().processEvents()
-            print("\n    ciao.")
+            logMsg("\n    ciao.")
         Qt.QApplication.quit()
 
 
