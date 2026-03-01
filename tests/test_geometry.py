@@ -161,7 +161,7 @@ def test_convolve_growth(geometry):
     assert np.all(convolved.volume == kernel_array)
 
 
-def test_single_voxel_voxelization(geometry, visualize=False):
+def test_single_voxel_voxelization(geometry, visualize):
     voxel_size = 1.0
     template = geometry.voxel_template(voxel_size)
     if visualize:
@@ -251,7 +251,7 @@ def test_cached_convolutions_behave_well(geometry):
     assert np.all(convolved.volume == convolved2.volume)
 
 
-def test_find_path(geometry, viz=None):
+def test_find_path(geometry, viz):
     voxel_size = 0.1
     geometry_to_global = NullTransform(3, from_cs=geometry.parent_name, to_cs="global")
     planner = GeometryMotionPlanner({geometry: geometry_to_global}, voxel_size)
@@ -284,7 +284,7 @@ def test_find_path(geometry, viz=None):
 
 @pytest.mark.xfail(reason="we aren't currently building for multi-pipette planning")
 @pytest.mark.parametrize("offset", [(0, 0, 0), (1, 1, 1), (0.2, 0.2, 0.2), (0.6, 0.6, 0.6)])
-def test_grazing_paths(offset, viz=None):
+def test_grazing_paths(offset, viz):
     vx = 1.0
     trav = Geometry({"type": "box", "size": [vx / 2, vx / 2, vx / 2]}, "trav", "trav_mesh")
     obst = Geometry(
@@ -342,7 +342,7 @@ def test_grazing_paths(offset, viz=None):
         assert conv_obst.contains_point(pt), f"point {pt} is not in the convolved obstacle"
 
 
-def test_z_and_x_are_not_swapped(viz=None):
+def test_z_and_x_are_not_swapped(viz):
     geometry = Geometry({"type": "box", "size": [10.0, 1.0, 1.0]}, "test_mesh", "test")
     voxel_size = 0.1
     from_geom_to_global = NullTransform(3, from_cs=geometry.parent_name, to_cs="global")
@@ -369,7 +369,7 @@ def test_z_and_x_are_not_swapped(viz=None):
     do_viz(viz, {geometry: from_geom_to_global, traveler: traveler_to_global})
 
 
-def test_path_with_funner_traveler(geometry, viz=None):
+def test_path_with_funner_traveler(geometry, viz):
     voxel_size = 0.1
     traveler = Geometry(
         {
@@ -394,7 +394,7 @@ def test_path_with_funner_traveler(geometry, viz=None):
     assert not np.all(path[0] == dest)
 
 
-def test_bounds_prevent_path(geometry, cube, viz=None):
+def test_bounds_prevent_path(geometry, cube, viz):
     voxel_size = 0.1
     traveler = Geometry(
         {
@@ -418,7 +418,7 @@ def test_bounds_prevent_path(geometry, cube, viz=None):
 
 
 @pytest.mark.xfail(reason="This scenario is highly unlikely, but we may fix it at some point")
-def test_paths_stay_inside_bounds(geometry, viz=None):
+def test_paths_stay_inside_bounds(geometry, viz):
     voxel_size = 1
     sqrt3 = 3**0.5
     sqrt6 = 6**0.5
@@ -460,7 +460,7 @@ def test_paths_stay_inside_bounds(geometry, viz=None):
             pg.exec()
 
 
-def test_no_path(viz=None):
+def test_no_path(viz):
     geometry = Geometry({"type": "box", "size": [1.0, 1.0, 1.0]}, "test_mesh", "test")
     voxel_size = 0.1
     geometry_to_global = NullTransform(3, from_cs=geometry.parent_name, to_cs="global")
@@ -510,7 +510,7 @@ def test_no_path_because_of_shadow(geometry):
         planner.find_path(traveler, traveler_to_global, start, dest)
 
 
-def test_no_path_because_of_offset_shadow(geometry, viz=None):
+def test_no_path_because_of_offset_shadow(geometry, viz):
     voxel_size = 0.1
     traveler = Geometry(
         {
